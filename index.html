@@ -334,20 +334,6 @@ var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : 
 if (tg) { try { tg.ready(); tg.expand(); } catch (e) {} }
 
 var actx = null;
-var voicePlayer = new Audio();
-var audioUnlocked = false;
-
-function unlockAudio() {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
-  try {
-    var AC = window.AudioContext || window.webkitAudioContext;
-    if (AC) { if (!actx) actx = new AC(); if (actx.state === 'suspended') actx.resume(); }
-  } catch (e) {}
-}
-document.addEventListener('touchstart', unlockAudio, { once: true });
-document.addEventListener('click', unlockAudio, { once: true });
-
 function beep(f, d, t) {
   if (!st.snd) return;
   try {
@@ -367,44 +353,12 @@ function beep(f, d, t) {
     o.stop(actx.currentTime + (d || 0.1));
   } catch (e) {}
 }
-
-function speakFallback(text, freq) {
-  if (!st.snd) return;
-  if ('speechSynthesis' in window) {
-    try {
-      window.speechSynthesis.cancel();
-      var u = new SpeechSynthesisUtterance(text);
-      u.lang = 'en-US';
-      u.rate = 0.95;
-      window.speechSynthesis.speak(u);
-      return;
-    } catch (e) {}
-  }
-  beep(freq || 600, 0.12);
-}
-
-function playVoiceFile(fileName, fallbackText, fallbackFreq) {
-  if (!st.snd) return;
-  try {
-    voicePlayer.pause();
-    voicePlayer.currentTime = 0;
-    voicePlayer.src = 'sounds/' + fileName + '.mp3';
-    var pr = voicePlayer.play();
-    if (pr && pr.catch) {
-      pr.catch(function() { speakFallback(fallbackText, fallbackFreq); });
-    }
-  } catch (e) {
-    speakFallback(fallbackText, fallbackFreq);
-  }
-}
-
 function fanfare() {
   [523, 659, 784, 1046].forEach(function(f, i) { setTimeout(function() { beep(f, 0.25, 'triangle'); }, i * 110); });
-  setTimeout(function() { playVoiceFile('bingo', 'Bingo!', 880); }, 250);
 }
 
 var tgu = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user : null;
-var KEY = 'royal_bingo_v3';
+var KEY = 'royal_bingo_v2';
 var st = {
   nm: tgu ? (tgu.first_name + (tgu.last_name ? ' ' + tgu.last_name : '')) : 'Royal Player',
   id: tgu ? String(tgu.id) : '490567751',
@@ -513,7 +467,6 @@ function toggleSound() {
   document.getElementById('sndBtn').textContent = st.snd ? '🔊' : '🔇';
   saveSt();
   if (st.snd) beep(660, 0.08);
-  else { try { voicePlayer.pause(); } catch (e) {} }
   toast(st.snd ? 'ድምፅ በርቷል 🔊' : 'ድምፅ ጠፍቷል 🔇');
 }
 function toggleAuto() {
@@ -678,7 +631,7 @@ function startPlay() {
     updCaller(num);
     if (st.auto && sel.length) {
       sel.forEach(function(no) {
-        if (genCard(no).indexOf(num) > -1) { marks[no][num] = true; }
+        if (genCard(no).indexOf(num) > -1) { marks[no][num] = true; beep(880, 0.08, 'triangle'); }
       });
     }
     drawPlayCards();
@@ -687,7 +640,7 @@ function startPlay() {
       if (wl && st.auto) { clearInterval(cInt); userWin(sel[k], wl); return; }
     }
     if (called.length >= simWin) { clearInterval(cInt); botWin(); }
-  }, 2700);
+  }, 2400);
 }
 
 function updCaller(num) {
@@ -703,7 +656,7 @@ function updCaller(num) {
     var pl = getLtr(p);
     return '<div class="pball b' + pl + '">' + pl + '-' + p + '</div>';
   }).join('');
-  playVoiceFile(String(num), l + ' ' + num, 520 + (num % 15) * 18);
+  beep(520 + (num % 15) * 18, 0.1);
 }
 
 function checkWin(g, mk) {
