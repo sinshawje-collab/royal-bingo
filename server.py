@@ -401,7 +401,7 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
 async def api_buy(req: Request, x_tg_init_data: str = Header(default='')):
   u, b = auth_user(x_tg_init_data), await req.json()
   st, cno = int(b.get('stake', 10)), int(b.get('card_no', 0))
-  if st not in rooms or not (1 <= cno <= 100): raise HTTPException(400, 'ልክ ያልሆነ ካርድ!')
+  if st not in rooms or not (1 <= cno <= 400): raise HTTPException(400, 'ልክ ያልሆነ ካርድ!')
   with room_lock:
     r = rooms[st]
     if r['phase'] not in ('WAITING', 'COUNTDOWN'): raise HTTPException(400, 'ጨዋታው ተጀምሯል!')
