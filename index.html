@@ -58,9 +58,9 @@ body.light .status-banner{color:#1d4ed8}
 .leg span{display:inline-flex;align-items:center;gap:5px}
 .dot{width:9px;height:9px;border-radius:3px;display:inline-block}
 .d-free{background:var(--el);border:1px solid var(--bd)}.d-taken{background:rgba(239,68,68,.7)}.d-mine{background:var(--gold)}
-.gwrap{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:8px;max-height:310px;overflow-y:auto;box-shadow:var(--sh);margin-bottom:10px}
-.cgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-.gnum{aspect-ratio:1/.92;border-radius:9px;background:var(--card2);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer}
+.gwrap{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:8px;max-height:340px;overflow-y:auto;box-shadow:var(--sh);margin-bottom:10px}
+.cgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:5px}
+.gnum{aspect-ratio:1/.9;border-radius:8px;background:var(--card2);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;cursor:pointer}
 .gnum.taken{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.4);color:#fca5a5}
 .gnum.sel{background:var(--ggrad);border-color:#fde68a;color:#090d16;font-weight:800;box-shadow:0 0 12px rgba(245,158,11,.55)}
 .pstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:7px}
@@ -455,7 +455,7 @@ function renderState(d) {
     r.taken_cards.forEach(function(n) { tkMap[n] = true; });
     r.my_cards.forEach(function(n) { myMap[n] = true; });
     var gh = '';
-    for (var i = 1; i <= 100; i++) {
+    for (var i = 1; i <= 400; i++) {
       var cls = myMap[i] ? 'sel' : (tkMap[i] ? 'taken' : '');
       gh += '<div class="gnum ' + cls + '" onclick="buyCard(' + i + ')">' + i + '</div>';
     }
@@ -463,7 +463,7 @@ function renderState(d) {
 
     var ms = document.getElementById('miniStrip');
     if (!r.my_cards.length) {
-      ms.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;font-size:12px;color:var(--mut);background:var(--card);border-radius:11px;border:1px dashed var(--bd)">ካርድ ለመግዛት መጀመሪያ Play Wallet ላይ ብር ያስገቡና ከ 1–100 ቁጥር ይንኩ</div>';
+      ms.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;font-size:12px;color:var(--mut);background:var(--card);border-radius:11px;border:1px dashed var(--bd)">ካርድ ለመግዛት መጀመሪያ Play Wallet ላይ ብር ያስገቡና ከ 1–400 ቁጥር ይንኩ</div>';
     } else {
       ms.innerHTML = r.my_cards.map(function(no) {
         var g = r.my_boards[String(no)] || [];
@@ -597,7 +597,7 @@ async function quickPick() {
   r.taken_cards.forEach(function(n) { used[n] = true; });
   r.my_cards.forEach(function(n) { used[n] = true; });
   var free = [];
-  for (var i = 1; i <= 100; i++) { if (!used[i]) free.push(i); }
+  for (var i = 1; i <= 400; i++) { if (!used[i]) free.push(i); }
   if (!free.length) { toast('ነፃ ካርድ የለም!'); return; }
   var pick = free[Math.floor(Math.random() * free.length)];
   await buyCard(pick);
