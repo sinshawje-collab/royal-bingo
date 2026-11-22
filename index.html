@@ -602,7 +602,7 @@ function renderState(d) {
       var dt = new Date(x.created_at * 1000);
       var tm = String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
       var pos = x.amount >= 0;
-      return '<div class="hitem"><div class="hl"><div class="hico">' + x.icon + '</div><div><div style="font-size:13px;font-weight:700">' + x.title + '</div><div style="font-size:10.5px;color:var(--mut)">' + tm + '</div></div></div><div style="font-size:13px;font-weight:800;color:' + (pos ? 'var(--em)' : '#f87171') + '">' + (pos ? '+' : '') + x.amount.toFixed(2) + ' ETB</div></div>';
+      return '<div class="hitem"><div class="hl"><div class="hico">' + x.icon + '</div><div><div style="font-size:13px;font-weight:700">' + x.title + (x.status === 'pending' ? ' <span style="color:#fbbf24">(PENDING)</span>' : '') + '</div><div style="font-size:10.5px;color:var(--mut)">' + tm + '</div></div></div><div style="font-size:13px;font-weight:800;color:' + (x.status === 'pending' ? '#fbbf24' : (pos ? 'var(--em)' : '#f87171')) + '">' + (pos ? '+' : '') + x.amount.toFixed(2) + ' ETB</div></div>';
     }).join('');
   }
 
