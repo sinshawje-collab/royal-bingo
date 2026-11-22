@@ -512,7 +512,7 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
   with get_db() as c:
     txs = [dict(x) for x in c.execute('SELECT icon,title,amount,created_at FROM transactions WHERE uid=? ORDER BY id DESC LIMIT 25', (u['uid'],)).fetchall()]
     top = [dict(x) for x in c.execute('SELECT name,total_won FROM users WHERE total_won>0 ORDER BY total_won DESC LIMIT 10').fetchall()]
-  return {'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']},
+  return {'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': is_adm(u['uid']),
           'config': {'telebirr_name': TB_NAME, 'telebirr_phone': TB_PHONE, 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
 
 @app.post('/api/buy_card')
@@ -579,6 +579,30 @@ async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
   try: notify_req('deposit', u['uid'], amt, 'TeleBirr/CBE', f'App TX: {tx}', reference=tx)
   except sqlite3.IntegrityError: raise HTTPException(409, 'ይህ Transaction ID ቀድሞ ተጠቅሟል!')
   return {'ok': True}
+
+
+@app.post('/api/admin/broadcast')
+async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  if not bot:
+    raise HTTPException(503, 'Telegram Bot አልተገናኘም!')
+  b = await req.json()
+  message = str(b.get('message', '')).strip()
+  if not message or len(message) > 4000:
+    raise HTTPException(400, 'መልእክቱን ይጻፉ (ከ1 እስከ 4000 ቁምፊ)!')
+  with get_db() as c:
+    uids = [row[0] for row in c.execute('SELECT uid FROM users ORDER BY created_at').fetchall()]
+  sent, failed = 0, 0
+  for uid in uids:
+    try:
+      bot.send_message(uid, f'📢 ማስታወቂያ\\n\\n{message}')
+      sent += 1
+      time.sleep(0.04)
+    except Exception:
+      failed += 1
+  return {'ok': True, 'sent': sent, 'failed': failed, 'total': len(uids)}
 
 @app.post('/api/withdraw')
 async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
