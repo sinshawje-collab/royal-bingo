@@ -589,9 +589,10 @@ async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default
   if not bot:
     raise HTTPException(503, 'Telegram Bot አልተገናኘም!')
   b = await req.json()
-  message = str(b.get('message', '')).strip()
-  if not message or len(message) > 4000:
-    raise HTTPException(400, 'መልእክቱን ይጻፉ (ከ1 እስከ 4000 ቁምፊ)!')
+  raw_message = b.get('message') if isinstance(b, dict) else None
+  message = raw_message.strip() if isinstance(raw_message, str) else ''
+  if not message or message.lower() == 'none' or len(message) > 4000:
+    raise HTTPException(400, 'መልእክቱ ባዶ ነው፤ ትክክለኛ መልእክት ይጻፉ (ከ1 እስከ 4000 ቁምፊ)!')
   with get_db() as c:
     uids = [row[0] for row in c.execute('SELECT uid FROM users ORDER BY created_at').fetchall()]
   sent, failed = 0, 0
