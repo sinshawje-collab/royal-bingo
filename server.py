@@ -77,7 +77,7 @@ def add_tx(c, uid, ic, title, amt):
   c.execute('INSERT INTO transactions (uid,icon,title,amount,created_at) VALUES (?,?,?,?,?)', (uid, ic, title, float(amt), int(time.time())))
 
 def available_wallet(c, uid):
-  row = c.execute("SELECT COALESCE(play_wallet,0)+COALESCE(win_wallet,0)-COALESCE((SELECT SUM(amount) FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending'),0) AS available FROM users WHERE uid=?", (uid, uid)).fetchone()
+  row = c.execute("SELECT COALESCE(play_wallet,0)+COALESCE(win_wallet,0)-COALESCE((SELECT SUM(amount) FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending' AND details LIKE 'PENDING RESERVED |%'),0) AS available FROM users WHERE uid=?", (uid, uid)).fetchone()
   return float(row['available'] or 0) if row else 0.0
 
 def gen_card(no):
@@ -363,7 +363,7 @@ if bot:
         if not u or not math.isfinite(float(amt)) or amt < 100 or available_wallet(c, m.from_user.id) < amt:
           return bot.reply_to(m, '❌ በቂ ባላንስ የለዎትም ወይም የገንዘብ መጠኑ ትክክል አይደለም!')
         rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at) VALUES (?,?,?,?,?,?,?)',
-                        ('withdraw', m.from_user.id, amt, md, f'Acc: {acc}', 'pending', int(time.time()))).lastrowid
+                        ('withdraw', m.from_user.id, amt, md, f'PENDING RESERVED | Acc: {acc}', 'pending', int(time.time()))).lastrowid
       if bot and ADMIN_ID:
         try:
           kb = IKB()
@@ -425,9 +425,10 @@ if bot:
           c.execute("UPDATE requests SET status='rejected' WHERE id=?", (int(rid),))
           bot.edit_message_text(call.message.text + '\n\n❌ ተሰርዟል', call.message.chat.id, call.message.message_id)
         elif rt == 'wd' and act == 'ap':
-          cur = c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=? AND play_wallet>=?', (amt, uid, amt))
-          if cur.rowcount != 1:
-            return bot.send_message(call.message.chat.id, f'❌ Request #{rid}: በተጫዋቹ ባላንስ ላይ ችግር አለ፤ ክፍያውን አትመዝግቡ።')
+          if str(rq['details'] or '').startswith('PENDING RESERVED |'):
+            cur = c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=? AND play_wallet>=?', (amt, uid, amt))
+            if cur.rowcount != 1:
+              return bot.send_message(call.message.chat.id, f'❌ Request #{rid}: በተጫዋቹ ባላንስ ላይ ችግር አለ፤ ክፍያውን አትመዝግቡ።')
           c.execute("UPDATE requests SET status='paid' WHERE id=?", (int(rid),))
           add_tx(c, uid, '💸', f'ወጪ ተልኳል ({rq["method"]})', -amt)
           bot.edit_message_text(call.message.text + f'\n\n✅ ተልኳል ({amt:.2f} ETB)', call.message.chat.id, call.message.message_id)
@@ -548,7 +549,7 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
             'called': r['called'], 'winner': r['winner'], 'winner_left': max(0, int(r['win_until'] - time.time())) if r['phase'] == 'WINNER' else 0}
   with get_db() as c:
     txs = [dict(x) for x in c.execute('SELECT icon,title,amount,created_at, NULL AS status FROM transactions WHERE uid=? ORDER BY id DESC LIMIT 25', (u['uid'],)).fetchall()]
-    pending = [dict(x) for x in c.execute("SELECT '⏳' AS icon, 'የወጪ ጥያቄ ('||method||') - PENDING' AS title, -amount AS amount, created_at, status FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending' ORDER BY id DESC LIMIT 25", (u['uid'],)).fetchall()]
+    pending = [dict(x) for x in c.execute("SELECT '⏳' AS icon, 'የወጪ ጥያቄ ('||method||') - PENDING' AS title, -amount AS amount, created_at, status FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending' AND details LIKE 'PENDING RESERVED |%' ORDER BY id DESC LIMIT 25", (u['uid'],)).fetchall()]
     txs = sorted(txs + pending, key=lambda x: x['created_at'], reverse=True)[:25]
     top = [dict(x) for x in c.execute('SELECT name,total_won FROM users WHERE total_won>0 ORDER BY total_won DESC LIMIT 10').fetchall()]
   return {'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': is_adm(u['uid']),
@@ -700,7 +701,7 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
     c.execute('BEGIN IMMEDIATE')
     if available_wallet(c, u['uid']) < amt: raise HTTPException(400, 'በቂ ያልሆነ ባላንስ አለዎት!')
     rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at) VALUES (?,?,?,?,?,?,?)',
-                    ('withdraw', u['uid'], amt, method, f'App Account: {ph}', 'pending', int(time.time()))).lastrowid
+                    ('withdraw', u['uid'], amt, method, f'PENDING RESERVED | App Account: {ph}', 'pending', int(time.time()))).lastrowid
   try:
     if bot and ADMIN_ID:
       kb = IKB()
