@@ -625,11 +625,15 @@ async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default
       if image_bytes:
         photo = io.BytesIO(image_bytes)
         photo.name = image_name
-        # Send the image first, then a separate Play Now message so the
-        # game button is still delivered even if Telegram rejects the photo.
-        bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\\n\\n{message}')
-        time.sleep(0.15)
-        bot.send_message(uid, '👇 ጨዋታውን ለመክፈት ከታች ይጫኑ፦', reply_markup=keyboard)
+        try:
+          bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\\n\\n{message}')
+          time.sleep(0.15)
+          bot.send_message(uid, '👇 ጨዋታውን ለመክፈት ከታች ይጫኑ፦', reply_markup=keyboard)
+        except Exception as photo_exc:
+          print(f'Photo broadcast failed for {uid}: {type(photo_exc).__name__}: {photo_exc}')
+          # Always deliver the text announcement with the Play Now button
+          # even when Telegram cannot accept the attached image.
+          bot.send_message(uid, f'📢 ማስታወቂያ\\n\\n{message}', reply_markup=keyboard)
       else:
         bot.send_message(uid, f'📢 ማስታወቂያ\\n\\n{message}', reply_markup=keyboard)
       sent += 1
