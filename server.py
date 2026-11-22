@@ -363,7 +363,7 @@ if bot:
       if bot and ADMIN_ID:
         kb = IKB(); kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
         player_phone = ensure_user(m.from_user.id).get('phone') or 'Not registered'
-        try: bot.send_message(ADMIN_ID, f'🔔 አዲስ የወጪ ጥያቄ!\n\n🆔 #{rid}\n👤 {m.from_user.first_name or "Player"}\n🆔 Player ID: {player_phone}\n💵 {amt:.2f} ETB\n🏦 {md}\n📱 {acc}', reply_markup=kb)
+      bot.send_message(ADMIN_ID, f'🔔 አዲስ የወጪ ጥያቄ!\n\n🆔 Request #{rid}\n👤 {u["name"]}\n🆔 Player ID: {player_phone}\n💵 {amt:.2f} ETB\n🏦 የወጪ ዘዴ: {method}\n📱 የተቀባይ ቁጥር: {ph}', reply_markup=kb)
         except Exception: pass
       bot.reply_to(m, f'✅ የ {amt:.2f} ETB የወጪ ጥያቄዎ ተመዝግቧል።', reply_markup=menu_kb(m.from_user.id))
     except sqlite3.Error:
@@ -679,17 +679,20 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
   try: amt = float(b.get('amount', 0))
   except (TypeError, ValueError): raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
   ph = str(b.get('phone', '')).strip()
+  method = str(b.get('method', 'TeleBirr')).strip()
+  if method not in ('TeleBirr', 'CBE Birr'):
+    raise HTTPException(400, 'TeleBirr ወይም CBE Birr ይምረጡ!')
   if not math.isfinite(amt) or amt < 100 or amt > 1000000 or len(ph) < 9 or len(ph) > 32:
-    raise HTTPException(400, 'ዝቅተኛ 100 ETB እና ትክክለኛ ስልክ ያስገቡ!')
+    raise HTTPException(400, 'ዝቅተኛ 100 ETB እና ትክክለኛ ሂሳብ/ስልክ ያስገቡ!')
   with get_db() as c:
     c.execute('BEGIN IMMEDIATE')
     row = c.execute('SELECT play_wallet FROM users WHERE uid=?', (u['uid'],)).fetchone()
     if not row or row['play_wallet'] < amt: raise HTTPException(400, 'በቂ ባላንስ የለዎትም!')
     cur = c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=? AND play_wallet>=?', (amt, u['uid'], amt))
     if cur.rowcount != 1: raise HTTPException(409, 'ባላንሱ ተቀይሯል፤ እንደገና ይሞክሩ።')
-    add_tx(c, u['uid'], '💸', f'የወጪ ጥያቄ ({ph})', -amt)
+    add_tx(c, u['uid'], '💸', f'የወጪ ጥያቄ ({method})', -amt)
     rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at) VALUES (?,?,?,?,?,?,?)',
-                    ('withdraw', u['uid'], amt, 'TeleBirr/CBE', f'App Phone: {ph}', 'pending', int(time.time()))).lastrowid
+                    ('withdraw', u['uid'], amt, method, f'App Account: {ph}', 'pending', int(time.time()))).lastrowid
   try:
     if bot and ADMIN_ID:
       kb = IKB()
