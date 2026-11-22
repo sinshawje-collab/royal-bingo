@@ -21,7 +21,7 @@ TB_PHONE = os.environ.get('TELEBIRR_PHONE', '0941882333')
 CBE_NAME = os.environ.get('CBE_BIRR_NAME', 'Sinshaw Jemaneh Eshete')
 CBE_PHONE = os.environ.get('CBE_BIRR_PHONE', '0941882333')
 DB_PATH = os.environ.get('DB_PATH', 'royal_bingo.db')
-HOUSE_CUT, CD_SEC, CALL_SEC, WIN_SEC = 0.20, 25, 3.0, 10
+HOUSE_CUT, CD_SEC, CALL_SEC, WIN_SEC = 0.20, 0, 3.0, 10
 MIN_PLAYERS = int(os.environ.get('MIN_PLAYERS', '2') or '2')
 db_lock, room_lock = threading.RLock(), threading.RLock()
 
@@ -164,21 +164,26 @@ def game_loop():
       for r in rooms.values():
         pc = n_players(r)
         if r['phase'] == 'WAITING' and pc >= MIN_PLAYERS:
-          r.update({'phase': 'COUNTDOWN', 'countdown': CD_SEC, 'tick': now})
+          # Start immediately: no lobby countdown. Only real, paid-in players
+          # satisfy MIN_PLAYERS; the displayed practice bots never enter payouts.
+          r.update({'phase': 'PLAYING', 'countdown': 0, 'called': [], 'deck': list(range(1, 76)), 'tick': now})
+          secrets.SystemRandom().shuffle(r['deck'])
           save_room(r)
+          with get_db() as c:
+            for uid in {v['uid'] for v in r['cards'].values()}:
+              c.execute('UPDATE users SET matches_played=matches_played+1 WHERE uid=?', (uid,))
         elif r['phase'] == 'COUNTDOWN':
+          # Finish any countdown left over from an older saved room immediately.
           if pc < MIN_PLAYERS:
-            r.update({'phase': 'WAITING', 'countdown': CD_SEC})
+            r.update({'phase': 'WAITING', 'countdown': 0})
             save_room(r)
-          elif now - r['tick'] >= 1.0:
-            r['tick'], r['countdown'] = now, r['countdown'] - 1
-            if r['countdown'] <= 0:
-              r.update({'phase': 'PLAYING', 'called': [], 'deck': list(range(1, 76)), 'tick': now})
-              secrets.SystemRandom().shuffle(r['deck'])
-              save_room(r)
-              with get_db() as c:
-                for uid in {v['uid'] for v in r['cards'].values()}:
-                  c.execute('UPDATE users SET matches_played=matches_played+1 WHERE uid=?', (uid,))
+          else:
+            r.update({'phase': 'PLAYING', 'countdown': 0, 'called': [], 'deck': list(range(1, 76)), 'tick': now})
+            secrets.SystemRandom().shuffle(r['deck'])
+            save_room(r)
+            with get_db() as c:
+              for uid in {v['uid'] for v in r['cards'].values()}:
+                c.execute('UPDATE users SET matches_played=matches_played+1 WHERE uid=?', (uid,))
         elif r['phase'] == 'PLAYING' and now - r['tick'] >= CALL_SEC:
           r['tick'] = now
           if r['deck']:
