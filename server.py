@@ -151,6 +151,7 @@ def game_loop():
             if r['countdown'] <= 0:
               r.update({'phase': 'PLAYING', 'called': [], 'deck': list(range(1, 76)), 'tick': now})
               secrets.SystemRandom().shuffle(r['deck'])
+              save_room(r)
               with get_db() as c:
                 for uid in {v['uid'] for v in r['cards'].values()}:
                   c.execute('UPDATE users SET matches_played=matches_played+1 WHERE uid=?', (uid,))
@@ -158,6 +159,7 @@ def game_loop():
           r['tick'] = now
           if r['deck']:
             r['called'].insert(0, r['deck'].pop())
+            save_room(r)
             cs = set(r['called'])
             for cno, info in sorted(r['cards'].items()):
               wl = check_win(info['grid'], cs)
@@ -521,7 +523,8 @@ async def api_buy(req: Request, x_tg_init_data: str = Header(default='')):
           c.execute('BEGIN IMMEDIATE')
           c.execute('UPDATE users SET play_wallet=play_wallet+? WHERE uid=?', (st, u['uid']))
           add_tx(c, u['uid'], '↩️', f'ካርድ #{cno} ተሰርዟል', st)
-        del r['cards'][cno]
+          del r['cards'][cno]
+          save_room(r, c)
         return {'ok': True, 'action': 'removed'}
       raise HTTPException(400, f'ካርድ #{cno} ተይዟል!')
     if sum(1 for v in r['cards'].values() if v['uid'] == u['uid']) >= 4: raise HTTPException(400, 'እስከ 4 ካርድ ብቻ!')
@@ -530,7 +533,8 @@ async def api_buy(req: Request, x_tg_init_data: str = Header(default='')):
       wallet = c.execute('SELECT play_wallet FROM users WHERE uid=?', (u['uid'],)).fetchone()
       if not wallet or wallet['play_wallet'] < st: raise HTTPException(400, 'በቂ Play Wallet የለዎትም! ገቢ ያድርጉ።')
       c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=?', (st, u['uid'])); add_tx(c, u['uid'], '🎴', f'ካርድ #{cno} ({st} ብር)', -st)
-    r['cards'][cno] = {'uid': u['uid'], 'name': u['name'], 'grid': gen_card(cno)}
+      r['cards'][cno] = {'uid': u['uid'], 'name': u['name'], 'grid': gen_card(cno)}
+      save_room(r, c)
     return {'ok': True, 'action': 'bought'}
 
 @app.post('/api/claim_bingo')
