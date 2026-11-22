@@ -1,4 +1,4 @@
-import hashlib, hmac, json, math, os, random, secrets, sqlite3, threading, time, urllib.parse
+import base64, hashlib, hmac, io, json, math, os, random, secrets, sqlite3, threading, time, urllib.parse
 from contextlib import contextmanager
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -591,14 +591,43 @@ async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default
   b = await req.json()
   raw_message = b.get('message') if isinstance(b, dict) else None
   message = raw_message.strip() if isinstance(raw_message, str) else ''
+  image_data = b.get('image') if isinstance(b, dict) else None
+  image_bytes, image_name = None, 'announcement.jpg'
   if not message or message.lower() == 'none' or len(message) > 4000:
-    raise HTTPException(400, 'መልእክቱ ባዶ ነው፤ ትክክለኛ መልእክት ይጻፉ (ከ1 እስከ 4000 ቁምፊ)!')
+    raise HTTPException(400, 'መልእክቱ ባዶ ነው፤ ከ1 እስከ 4000 ቁምፊ ይጻፉ!')
+  if image_data:
+    if not isinstance(image_data, str) or ',' not in image_data:
+      raise HTTPException(400, 'የምስሉ ፋይል ትክክል አይደለም!')
+    image_header, encoded = image_data.split(',', 1)
+    if 'image/jpeg' in image_header:
+      image_name = 'announcement.jpg'
+    elif 'image/png' in image_header:
+      image_name = 'announcement.png'
+    elif 'image/webp' in image_header:
+      image_name = 'announcement.webp'
+    else:
+      raise HTTPException(400, 'JPG, PNG ወይም WEBP ምስል ብቻ ይጠቀሙ!')
+    try:
+      image_bytes = base64.b64decode(encoded, validate=True)
+    except Exception:
+      raise HTTPException(400, 'የምስሉ ፋይል ማንበብ አልተቻለም!')
+    if not image_bytes or len(image_bytes) > 8 * 1024 * 1024:
+      raise HTTPException(413, 'ምስሉ ከ8MB በታች መሆን አለበት!')
+    if len(message) > 900:
+      raise HTTPException(400, 'ምስል ሲያያዝ መልእክቱ ከ900 ቁምፊ መብለጥ የለበትም!')
   with get_db() as c:
     uids = [row[0] for row in c.execute('SELECT uid FROM users ORDER BY created_at').fetchall()]
+  keyboard = IKB()
+  keyboard.add(IBtn('🎮 Play Now', web_app=WebAppInfo(url=APP_URL)))
   sent, failed = 0, 0
   for uid in uids:
     try:
-      bot.send_message(uid, f'📢 ማስታወቂያ\\n\\n{message}')
+      if image_bytes:
+        photo = io.BytesIO(image_bytes)
+        photo.name = image_name
+        bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\\n\\n{message}', reply_markup=keyboard)
+      else:
+        bot.send_message(uid, f'📢 ማስታወቂያ\\n\\n{message}', reply_markup=keyboard)
       sent += 1
       time.sleep(0.04)
     except Exception:
