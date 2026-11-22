@@ -144,8 +144,11 @@ def game_loop():
         pc = n_players(r)
         if r['phase'] == 'WAITING' and pc >= MIN_PLAYERS:
           r.update({'phase': 'COUNTDOWN', 'countdown': CD_SEC, 'tick': now})
+          save_room(r)
         elif r['phase'] == 'COUNTDOWN':
-          if pc < MIN_PLAYERS: r.update({'phase': 'WAITING', 'countdown': CD_SEC})
+          if pc < MIN_PLAYERS:
+            r.update({'phase': 'WAITING', 'countdown': CD_SEC})
+            save_room(r)
           elif now - r['tick'] >= 1.0:
             r['tick'], r['countdown'] = now, r['countdown'] - 1
             if r['countdown'] <= 0:
