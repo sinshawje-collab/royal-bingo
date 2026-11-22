@@ -272,9 +272,14 @@ body.light .status-banner{color:#1d4ed8}
 
       <div id="wdDrw" class="drw">
         <div class="shd c-gold">💸 የወጪ ጥያቄ (Withdrawal)</div>
+        <div class="shd" style="font-size:12px;color:var(--mut);margin:4px 0 8px">የወጪ ክፍያ ዘዴ ይምረጡ</div>
+        <div class="tgrid" style="margin-bottom:12px">
+          <button type="button" id="wdTeleBtn" class="tbtn on" onclick="selectWithdrawMethod('TeleBirr')">📲 TeleBirr</button>
+          <button type="button" id="wdCbeBtn" class="tbtn" onclick="selectWithdrawMethod('CBE Birr')">🏦 CBE Birr</button>
+        </div>
         <div class="fstack">
-          <input id="wdAmt" class="rinp" type="number" placeholder="የሚወጣው መጠን (ዝቅተኛ 100 ETB)" />
-          <input id="wdPh" class="rinp" type="tel" placeholder="የTeleBirr / CBE ቁጥርዎ (09...)" />
+          <input id="wdAmt" class="rinp" type="number" min="100" placeholder="የሚወጣው መጠን (ዝቅተኛ 100 ETB)" />
+          <input id="wdPh" class="rinp" type="tel" placeholder="የተቀባይ ሂሳብ / ስልክ ቁጥር (09...)" />
           <button class="btnp" onclick="sendWd()">✔️ የወጪ ጥያቄ ላክ</button>
         </div>
       </div>
@@ -759,15 +764,21 @@ async function sendAdminBroadcast() {
   }
 }
 
+var selectedWithdrawMethod = 'TeleBirr';
+function selectWithdrawMethod(method) {
+  selectedWithdrawMethod = method;
+  document.getElementById('wdTeleBtn').classList.toggle('on', method === 'TeleBirr');
+  document.getElementById('wdCbeBtn').classList.toggle('on', method === 'CBE Birr');
+}
 async function sendWd() {
   var a = parseFloat(document.getElementById('wdAmt').value);
   var ph = document.getElementById('wdPh').value.trim();
   try {
-    await apiReq('/api/withdraw', 'POST', { amount: a, phone: ph });
+    await apiReq('/api/withdraw', 'POST', { amount: a, phone: ph, method: selectedWithdrawMethod });
     document.getElementById('wdAmt').value = '';
     document.getElementById('wdPh').value = '';
     document.getElementById('wdDrw').classList.remove('on');
-    toast('✅ የወጪ ጥያቄዎ ለአድሚን ተልኳል!');
+    toast('✅ የ ' + selectedWithdrawMethod + ' ወጪ ጥያቄዎ ለአድሚን ተልኳል!');
     await pollState();
   } catch (e) { toast('❌ ' + e.message); }
 }
