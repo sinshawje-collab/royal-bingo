@@ -76,6 +76,10 @@ def ensure_user(uid, name='Player', ref=None):
 def add_tx(c, uid, ic, title, amt):
   c.execute('INSERT INTO transactions (uid,icon,title,amount,created_at) VALUES (?,?,?,?,?)', (uid, ic, title, float(amt), int(time.time())))
 
+def available_wallet(c, uid):
+  row = c.execute("SELECT COALESCE(play_wallet,0)+COALESCE(win_wallet,0)-COALESCE((SELECT SUM(amount) FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending'),0) AS available FROM users WHERE uid=?", (uid, uid)).fetchone()
+  return float(row['available'] or 0) if row else 0.0
+
 def gen_card(no):
   rng = random.SystemRandom()
   cols = [rng.sample(range(a, b + 1), 5) for a, b in [(1,15),(16,30),(31,45),(46,60),(61,75)]]
@@ -340,8 +344,12 @@ if bot:
     u = ensure_user(m.from_user.id)
     try: amt = float((m.text or '').strip())
     except Exception: return bot.reply_to(m, '❌ ትክክለኛ ቁጥር ያስገቡ።')
-    if not math.isfinite(amt) or amt < 100 or amt > 1000000 or (u['play_wallet'] + u['win_wallet']) < amt:
-      return bot.reply_to(m, f'❌ 100–1,000,000 ETB ያስገቡ እና በቂ ባላንስ እንዳለ ያረጋግጡ ({(u["play_wallet"] + u["win_wallet"]):.2f} ETB)።')
+    if not math.isfinite(amt) or amt < 100 or amt > 1000000:
+      return bot.reply_to(m, '❌ 100–1,000,000 ETB ያለ ትክክለኛ መጠን ያስገቡ።')
+    with get_db() as c:
+      available = available_wallet(c, m.from_user.id)
+    if available < amt:
+      return bot.reply_to(m, f'❌ በቂ ያልሆነ ባላንስ። ለወጪ የሚገኘው: {available:.2f} ETB')
     bot.register_next_step_handler(bot.reply_to(m, f'📱 የ {md} ስልክ/አካውንት ቁጥርዎን ያስገቡ፦'), s_wd_acc, amt, md)
 
   def s_wd_acc(m, amt, md):
@@ -352,12 +360,8 @@ if bot:
       with get_db() as c:
         c.execute('BEGIN IMMEDIATE')
         u = c.execute('SELECT name, play_wallet FROM users WHERE uid=?', (m.from_user.id,)).fetchone()
-        if not u or not math.isfinite(float(amt)) or amt < 100 or u['play_wallet'] < amt:
+        if not u or not math.isfinite(float(amt)) or amt < 100 or available_wallet(c, m.from_user.id) < amt:
           return bot.reply_to(m, '❌ በቂ ባላንስ የለዎትም ወይም የገንዘብ መጠኑ ትክክል አይደለም!')
-        cur = c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=? AND play_wallet>=?', (amt, m.from_user.id, amt))
-        if cur.rowcount != 1:
-          return bot.reply_to(m, '❌ በቂ ባላንስ የለዎትም!')
-        add_tx(c, m.from_user.id, '💸', f'የወጪ ጥያቄ ({md})', -amt)
         rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at) VALUES (?,?,?,?,?,?,?)',
                         ('withdraw', m.from_user.id, amt, md, f'Acc: {acc}', 'pending', int(time.time()))).lastrowid
       if bot and ADMIN_ID:
@@ -421,15 +425,19 @@ if bot:
           c.execute("UPDATE requests SET status='rejected' WHERE id=?", (int(rid),))
           bot.edit_message_text(call.message.text + '\n\n❌ ተሰርዟል', call.message.chat.id, call.message.message_id)
         elif rt == 'wd' and act == 'ap':
+          cur = c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=? AND play_wallet>=?', (amt, uid, amt))
+          if cur.rowcount != 1:
+            return bot.send_message(call.message.chat.id, f'❌ Request #{rid}: በተጫዋቹ ባላንስ ላይ ችግር አለ፤ ክፍያውን አትመዝግቡ።')
           c.execute("UPDATE requests SET status='paid' WHERE id=?", (int(rid),))
+          add_tx(c, uid, '💸', f'ወጪ ተልኳል ({rq["method"]})', -amt)
           bot.edit_message_text(call.message.text + f'\n\n✅ ተልኳል ({amt:.2f} ETB)', call.message.chat.id, call.message.message_id)
-          try: bot.send_message(uid, f'✅ የ {amt:.2f} ETB ወጪዎ ተልኳል!')
+          try: bot.send_message(uid, f'✅ የ {amt:.2f} ETB ወጪዎ በ {rq["method"]} ተልኳል!')
           except Exception: pass
         else:
           c.execute("UPDATE requests SET status='rejected' WHERE id=?", (int(rid),))
-          c.execute('UPDATE users SET play_wallet=play_wallet+? WHERE uid=?', (amt, uid))
-          add_tx(c, uid, '↩️', 'ወጪ ተመልሷል', amt)
           bot.edit_message_text(call.message.text + '\n\n❌ ተሰርዞ ተመልሷል', call.message.chat.id, call.message.message_id)
+          try: bot.send_message(uid, f'❌ የ {amt:.2f} ETB ወጪ ጥያቄዎ ተሰርዟል። ገንዘቡ በWallet ውስጥ አሁንም አለ።')
+          except Exception: pass
 
   def s_adm_bal(m, act):
     if not is_adm(m.from_user.id): return
@@ -539,7 +547,9 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
             'taken_cards': tk_c, 'my_cards': my_c, 'my_boards': {str(n): r['cards'][n]['grid'] for n in my_c},
             'called': r['called'], 'winner': r['winner'], 'winner_left': max(0, int(r['win_until'] - time.time())) if r['phase'] == 'WINNER' else 0}
   with get_db() as c:
-    txs = [dict(x) for x in c.execute('SELECT icon,title,amount,created_at FROM transactions WHERE uid=? ORDER BY id DESC LIMIT 25', (u['uid'],)).fetchall()]
+    txs = [dict(x) for x in c.execute('SELECT icon,title,amount,created_at, NULL AS status FROM transactions WHERE uid=? ORDER BY id DESC LIMIT 25', (u['uid'],)).fetchall()]
+    pending = [dict(x) for x in c.execute("SELECT '⏳' AS icon, 'የወጪ ጥያቄ ('||method||') - PENDING' AS title, -amount AS amount, created_at, status FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending' ORDER BY id DESC LIMIT 25", (u['uid'],)).fetchall()]
+    txs = sorted(txs + pending, key=lambda x: x['created_at'], reverse=True)[:25]
     top = [dict(x) for x in c.execute('SELECT name,total_won FROM users WHERE total_won>0 ORDER BY total_won DESC LIMIT 10').fetchall()]
   return {'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': is_adm(u['uid']),
           'config': {'telebirr_name': TB_NAME, 'telebirr_phone': TB_PHONE, 'cbe_name': CBE_NAME, 'cbe_phone': CBE_PHONE, 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
@@ -567,7 +577,7 @@ async def api_buy(req: Request, x_tg_init_data: str = Header(default='')):
     with get_db() as c:
       c.execute('BEGIN IMMEDIATE')
       wallet = c.execute('SELECT play_wallet FROM users WHERE uid=?', (u['uid'],)).fetchone()
-      if not wallet or wallet['play_wallet'] < st: raise HTTPException(400, 'በቂ Play Wallet የለዎትም! ገቢ ያድርጉ።')
+      if not wallet or available_wallet(c, u['uid']) < st: raise HTTPException(400, 'በቂ Play Wallet የለዎትም! ገቢ ያድርጉ።')
       c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=?', (st, u['uid'])); add_tx(c, u['uid'], '🎴', f'ካርድ #{cno} ({st} ብር)', -st)
       r['cards'][cno] = {'uid': u['uid'], 'name': u['name'], 'grid': gen_card(cno)}
       save_room(r, c)
@@ -688,11 +698,7 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
     raise HTTPException(400, 'ዝቅተኛ 100 ETB እና ትክክለኛ ሂሳብ/ስልክ ያስገቡ!')
   with get_db() as c:
     c.execute('BEGIN IMMEDIATE')
-    row = c.execute('SELECT play_wallet FROM users WHERE uid=?', (u['uid'],)).fetchone()
-    if not row or row['play_wallet'] < amt: raise HTTPException(400, 'በቂ ባላንስ የለዎትም!')
-    cur = c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=? AND play_wallet>=?', (amt, u['uid'], amt))
-    if cur.rowcount != 1: raise HTTPException(409, 'ባላንሱ ተቀይሯል፤ እንደገና ይሞክሩ።')
-    add_tx(c, u['uid'], '💸', f'የወጪ ጥያቄ ({method})', -amt)
+    if available_wallet(c, u['uid']) < amt: raise HTTPException(400, 'በቂ ያልሆነ ባላንስ አለዎት!')
     rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at) VALUES (?,?,?,?,?,?,?)',
                     ('withdraw', u['uid'], amt, method, f'App Account: {ph}', 'pending', int(time.time()))).lastrowid
   try:
@@ -700,7 +706,7 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
       kb = IKB()
       kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
       player_phone = u.get('phone') or 'Not registered'
-      bot.send_message(ADMIN_ID, f'🔔 አዲስ የወጪ ጥያቄ!\n\n🆔 Request #{rid}\n👤 {u["name"]}\n🆔 Player ID: {player_phone}\n💵 {amt:.2f} ETB\n📱 {ph}', reply_markup=kb)
+      bot.send_message(ADMIN_ID, f'🔔 አዲስ የወጪ ጥያቄ!\n\n🆔 Request #{rid}\n👤 {u["name"]}\n🆔 Player ID: {player_phone}\n💵 {amt:.2f} ETB\n🏦 የወጪ ዘዴ: {method}\n📱 የተቀባይ ቁጥር: {ph}\n⏳ ሁኔታ: PENDING', reply_markup=kb)
   except Exception:
     pass
   return {'ok': True}
