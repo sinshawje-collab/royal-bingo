@@ -448,11 +448,33 @@ if bot:
   def s_bcast(m):
     if not is_adm(m.from_user.id): return
     with get_db() as c: uids = [r[0] for r in c.execute('SELECT uid FROM users').fetchall()]
-    s = 0
-    for u in uids:
-      try: bot.send_message(u, f'📢 ማስታወቂያ\n\n{m.text}'); s += 1
-      except Exception: pass
-    bot.reply_to(m, f'✅ ለ {s} ተጫዋቾች ተልኳል።')
+    keyboard = IKB()
+    keyboard.add(IBtn('🎮 Play Now', web_app=WebAppInfo(url=APP_URL)))
+    sent, failed = 0, 0
+    caption = (m.caption or '').strip() if m.content_type == 'photo' else (m.text or '').strip()
+    if not caption:
+      caption = '🎮 ጨዋታውን ለመክፈት Play Now ይጫኑ።'
+    photo_bytes = None
+    if m.content_type == 'photo':
+      try:
+        file_info = bot.get_file(m.photo[-1].file_id)
+        photo_bytes = bot.download_file(file_info.file_path)
+      except Exception as exc:
+        return bot.reply_to(m, f'❌ ፎቶውን ማውረድ አልተቻለም: {type(exc).__name__}: {exc}')
+    for uid in uids:
+      try:
+        if photo_bytes:
+          photo = io.BytesIO(photo_bytes)
+          photo.name = 'announcement.jpg'
+          bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\n\n{caption}', reply_markup=keyboard)
+        else:
+          bot.send_message(uid, f'📢 ማስታወቂያ\n\n{caption}', reply_markup=keyboard)
+        sent += 1
+        time.sleep(0.05)
+      except Exception as exc:
+        failed += 1
+        print(f'Bot admin broadcast failed for {uid}: {type(exc).__name__}: {exc}')
+    bot.reply_to(m, f'✅ ተሳክቷል: {sent} | አልተሳካም: {failed} | ጠቅላላ: {len(uids)}')
 
   @bot.message_handler(func=lambda m: m.text == '👥 ግብዣ (Invite)')
   def c_inv(m):
