@@ -18,6 +18,8 @@ APP_URL = ('https://' + APP_URL[8:]) if APP_URL.lower().startswith('https://') e
 SUPPORT = os.environ.get('SUPPORT_USERNAME', '@royal_bingo_99_Support')
 TB_NAME = os.environ.get('TELEBIRR_NAME', 'SINSHAW JEMANEH ESHETE')
 TB_PHONE = os.environ.get('TELEBIRR_PHONE', '0941882333')
+CBE_NAME = os.environ.get('CBE_BIRR_NAME', 'Sinshaw Jemaneh Eshete')
+CBE_PHONE = os.environ.get('CBE_BIRR_PHONE', '0941882333')
 DB_PATH = os.environ.get('DB_PATH', 'royal_bingo.db')
 HOUSE_CUT, CD_SEC, CALL_SEC, WIN_SEC = 0.20, 25, 3.0, 10
 MIN_PLAYERS = int(os.environ.get('MIN_PLAYERS', '2') or '2')
@@ -538,7 +540,7 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
     txs = [dict(x) for x in c.execute('SELECT icon,title,amount,created_at FROM transactions WHERE uid=? ORDER BY id DESC LIMIT 25', (u['uid'],)).fetchall()]
     top = [dict(x) for x in c.execute('SELECT name,total_won FROM users WHERE total_won>0 ORDER BY total_won DESC LIMIT 10').fetchall()]
   return {'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': is_adm(u['uid']),
-          'config': {'telebirr_name': TB_NAME, 'telebirr_phone': TB_PHONE, 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
+          'config': {'telebirr_name': TB_NAME, 'telebirr_phone': TB_PHONE, 'cbe_name': CBE_NAME, 'cbe_phone': CBE_PHONE, 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
 
 @app.post('/api/buy_card')
 async def api_buy(req: Request, x_tg_init_data: str = Header(default='')):
@@ -599,9 +601,12 @@ async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
   try: amt = float(b.get('amount', 0))
   except (TypeError, ValueError): raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
   tx = str(b.get('tx_id', '')).strip()
+  method = str(b.get('method', 'TeleBirr')).strip()
+  if method not in ('TeleBirr', 'CBE Birr'):
+    raise HTTPException(400, 'TeleBirr ወይም CBE Birr ይምረጡ!')
   if not math.isfinite(amt) or amt < 20 or amt > 1000000 or len(tx) < 4 or len(tx) > 120:
     raise HTTPException(400, 'ዝቅተኛ 20 ETB፣ ትክክለኛ Transaction ID እና ተገቢ መጠን ያስገቡ!')
-  try: notify_req('deposit', u['uid'], amt, 'TeleBirr/CBE', f'App TX: {tx}', reference=tx)
+  try: notify_req('deposit', u['uid'], amt, method, f'App TX: {tx}', reference=tx)
   except sqlite3.IntegrityError: raise HTTPException(409, 'ይህ Transaction ID ቀድሞ ተጠቅሟል!')
   return {'ok': True}
 
