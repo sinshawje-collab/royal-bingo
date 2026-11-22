@@ -227,6 +227,12 @@ body.light .status-banner{color:#1d4ed8}
         </div>
       </div>
     </div>
+    <div id="adminBotTest" class="scard" style="display:none">
+      <div class="shd"><span>🧪 50 AI Practice Test</span></div>
+      <p style="font-size:11.5px;color:var(--mut);margin:-3px 0 9px">ይህ ሙከራ ከLive ጨዋታ ውጭ ነው፤ Wallet፣ የገንዘብ ሽልማት እና የተጫዋቾች ክፍል አይነካም።</p>
+      <button id="adminBotTestBtn" class="btnp" style="width:100%" onclick="runAdminBotTest()">▶️ 50ዎቹን አሁን ፈትሽ</button>
+      <div id="adminBotTestResult" style="display:none;margin-top:10px;padding:10px;border:1px solid var(--bd);border-radius:10px;font-size:12px;line-height:1.7"></div>
+    </div>
     <div id="adminBroadcast" class="scard" style="display:none">
       <div class="shd"><span>📢 ለሁሉም ተጫዋቾች መልእክት</span></div>
       <p style="font-size:11.5px;color:var(--mut);margin:-3px 0 9px">መልእክቱን ጽፈህ ላክ ስትጫን ለሁሉም የተመዘገቡ ተጫዋቾች ይላካል።</p>
@@ -467,6 +473,7 @@ function renderState(d) {
   latestState = d;
   var u = d.user, r = d.room, cfg = d.config;
   document.getElementById('adminBroadcast').style.display = d.is_admin ? 'block' : 'none';
+  document.getElementById('adminBotTest').style.display = d.is_admin ? 'block' : 'none';
   var botText = '🤖 AI PRACTICE PLAYERS — ' + (r.bots || []).map(function(b) { return b.name + ' (' + b.progress + '/25)'; }).join(' · ');
   if (r.bot_practice_winner) botText += ' | 🏆 Practice winner: ' + r.bot_practice_winner.name + ' — practice only, no cash prize.';
   ['botNamesLobby','botNamesPlay'].forEach(function(id) { var el=document.getElementById(id); if(el) el.textContent=botText; });
@@ -715,6 +722,31 @@ document.getElementById('adminBroadcastImage').addEventListener('change', functi
   reader.onload = function() { preview.src = reader.result; preview.style.display = 'block'; };
   reader.readAsDataURL(file);
 });
+
+async function runAdminBotTest() {
+  var btn = document.getElementById('adminBotTestBtn');
+  var out = document.getElementById('adminBotTestResult');
+  btn.disabled = true;
+  btn.textContent = '⏳ 50ዎቹ በመፈተሽ ላይ...';
+  out.style.display = 'block';
+  out.textContent = 'ሙከራው በመካሄድ ላይ...';
+  try {
+    var result = await apiReq('/api/admin/bot-test', 'POST', {});
+    var winner = result.winner;
+    out.innerHTML = '<strong>✅ ሙከራው ተጠናቋል</strong><br>' +
+      'AI ተጫዋቾች: ' + result.bots + '<br>' +
+      'Bingo እስኪገኝ የተጠሩ ቁጥሮች: ' + result.calls_until_bingo + '<br>' +
+      'የPractice አሸናፊ: ' + (winner ? winner.name + ' (Card #' + winner.card_no + ')' : 'አልተገኘም') + '<br>' +
+      'የገንዘብ ሽልማት: 0 ETB<br>' +
+      'Wallet ለውጥ: የለም<br>Live ጨዋታ ለውጥ: የለም';
+    out.style.display = 'block';
+  } catch (e) {
+    out.textContent = '❌ ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶️ 50ዎቹን እንደገና ፈትሽ';
+  }
+}
 
 async function sendAdminBroadcast() {
   var field = document.getElementById('adminBroadcastText');
