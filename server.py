@@ -744,3 +744,34 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
   except Exception:
     pass
   return {'ok': True}
+
+
+@app.post('/api/admin/bot-test')
+async def api_admin_bot_test(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ሙከራ ለአድሚን ብቻ ነው!')
+  # Isolated simulation: never joins a live room, touches wallets, or creates payouts.
+  bots = make_bot_cards()
+  deck = list(range(1, 76))
+  random.SystemRandom().shuffle(deck)
+  called = []
+  winner = None
+  for number in deck:
+    called.append(number)
+    called_set = set(called)
+    for i, bot_card in enumerate(bots):
+      line = check_win(bot_card['grid'], called_set)
+      if line:
+        winner = {'name': bot_card['name'], 'card_no': i + 1, 'win_line': line}
+        break
+    if winner:
+      break
+  progress = []
+  called_set = set(called)
+  for i, bot_card in enumerate(bots):
+    marked = sum(1 for value in bot_card['grid'] if value == 'FREE' or value in called_set)
+    progress.append({'name': bot_card['name'], 'card_no': i + 1, 'progress': marked})
+  return {'ok': True, 'mode': 'admin_practice_simulation', 'bots': len(bots),
+          'calls_until_bingo': len(called), 'winner': winner, 'progress': progress,
+          'cash_prize': 0, 'wallets_changed': False, 'live_room_changed': False}
