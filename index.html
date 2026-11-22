@@ -181,8 +181,6 @@ body.light .status-banner{color:#1d4ed8}
       </div>
 
       <div id="statusBanner" class="status-banner">⏳ እውነተኛ ተጫዋቾች በመጠበቅ ላይ... (ቢያንስ 2 ሰው ሲገባ ይጀምራል)</div>
-      <div id="botRosterLobby" class="spec" style="margin-bottom:10px;text-align:left"><strong>🤖 50 AI ልምምድ ተጫዋቾች</strong><br><span>የሙከራ ተቃዋሚዎች ናቸው፤ በገንዘብ፣ በደራሽ ወይም በአሸናፊነት አይሳተፉም።</span><div id="botNamesLobby" style="margin-top:6px;font-size:11px"></div></div>
-
       <div class="sbar">
         <div class="spills">
           <button class="spill on" data-s="10" onclick="setStake(10)">10 ብር</button>
@@ -208,7 +206,6 @@ body.light .status-banner{color:#1d4ed8}
     </div>
 
     <div id="playView" style="display:none">
-      <div id="botRosterPlay" class="spec" style="margin-bottom:9px;text-align:left"><strong>🤖 50 AI ልምምድ ተጫዋቾች</strong><br><span>ማስመሰያ ብቻ — በእውነተኛ ደራሽ አይሳተፉም።</span><div id="botNamesPlay" style="margin-top:6px;font-size:11px"></div></div>
       <div class="srow3">
         <div class="sbox"><div class="slbl">DERASH</div><div id="pDer" class="sval c-gold">0</div></div>
         <div class="sbox"><div class="slbl">PLAYERS</div><div id="pPly" class="sval c-blue">0</div></div>
@@ -468,10 +465,6 @@ function renderState(d) {
   latestState = d;
   var u = d.user, r = d.room, cfg = d.config;
   document.getElementById('adminBroadcast').style.display = d.is_admin ? 'block' : 'none';
-  var botText = (r.bots || []).map(function(b) { return b.name + ' (' + b.progress + '/25)'; }).join(' · ');
-  ['botNamesLobby','botNamesPlay'].forEach(function(id) { var el=document.getElementById(id); if(el) el.textContent=botText; });
-  var botCount = (r.bots || []).length;
-  ['botRosterLobby','botRosterPlay'].forEach(function(id) { var el=document.getElementById(id); if(el) el.style.display=botCount ? 'block' : 'none'; });
   var balance = Number(u.balance != null ? u.balance : (u.play_wallet || 0) + (u.win_wallet || 0));
   document.getElementById('hBal').textContent = balance.toFixed(2);
   document.getElementById('lWal').textContent = balance.toFixed(2);
