@@ -230,16 +230,15 @@ body.light .status-banner{color:#1d4ed8}
   <section id="tab-wallet" class="tab">
     <div class="scard">
       <div class="shd"><span>💼 የሂሳብ ማጠቃለያ (Real Wallet)</span></div>
-      <div class="wdual">
-        <div class="wsub"><div class="l">🎮 PLAY WALLET</div><div id="pwVal" class="a c-em">0.00</div><div class="h">ለመጫወቻ</div></div>
-        <div class="wsub"><div class="l">🏆 WIN WALLET</div><div id="wwVal" class="a c-gold">0.00</div><div class="h">ለማውጣት ዝግጁ</div></div>
+      <div class="wsub" style="margin-bottom:12px;padding:20px 12px">
+        <div class="l">👛 TOTAL WALLET BALANCE</div>
+        <div id="balanceVal" class="a c-gold" style="font-size:30px">0.00 ETB</div>
+        <div class="h">ለመጫወትም ሆነ ለማውጣት የሚጠቀሙበት አንድ ባላንስ</div>
       </div>
       <div class="wact">
         <button class="btnd" onclick="openDrw('dep')">↓ ገቢ (DEPOSIT)</button>
         <button class="btnw" onclick="openDrw('wd')">↑ ወጪ (WITHDRAW)</button>
       </div>
-      <button class="qbtn" style="width:100%;margin-top:9px;padding:9px" onclick="winToPlay()">🔄 ከ Win Wallet ወደ Play Wallet ቀይር</button>
-
       <div id="depDrw" class="drw">
         <div class="shd c-em">📲 የገቢ መመሪያ (TeleBirr / CBE)</div>
         <div class="abox">
@@ -446,10 +445,10 @@ function checkWinLocal(grid, markMap) {
 function renderState(d) {
   latestState = d;
   var u = d.user, r = d.room, cfg = d.config;
-  document.getElementById('hBal').textContent = (u.play_wallet + u.win_wallet).toFixed(2);
-  document.getElementById('lWal').textContent = u.play_wallet.toFixed(2);
-  document.getElementById('pwVal').textContent = u.play_wallet.toFixed(2);
-  document.getElementById('wwVal').textContent = u.win_wallet.toFixed(2);
+  var balance = Number(u.balance != null ? u.balance : (u.play_wallet || 0) + (u.win_wallet || 0));
+  document.getElementById('hBal').textContent = balance.toFixed(2);
+  document.getElementById('lWal').textContent = balance.toFixed(2);
+  document.getElementById('balanceVal').textContent = balance.toFixed(2) + ' ETB';
   document.getElementById('prName').textContent = u.name;
   document.getElementById('prId').textContent = u.player_id || 'ስልክ አልተመዘገበም';
   document.getElementById('prPly').textContent = u.matches_played;
@@ -495,7 +494,7 @@ function renderState(d) {
 
     var ms = document.getElementById('miniStrip');
     if (!r.my_cards.length) {
-      ms.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;font-size:12px;color:var(--mut);background:var(--card);border-radius:11px;border:1px dashed var(--bd)">ካርድ ለመግዛት መጀመሪያ Play Wallet ላይ ብር ያስገቡና ከ 1–400 ቁጥር ይንኩ</div>';
+      ms.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;font-size:12px;color:var(--mut);background:var(--card);border-radius:11px;border:1px dashed var(--bd)">ካርድ ለመግዛት መጀመሪያ Wallet ላይ ብር ያስገቡና ከ 1–400 ቁጥር ይንኩ</div>';
     } else {
       ms.innerHTML = r.my_cards.map(function(no) {
         var g = r.my_boards[String(no)] || [];
@@ -653,14 +652,6 @@ async function claimBingo(no) {
     await pollState();
   } catch (e) { toast('❌ ' + e.message); }
   busy = false;
-}
-
-async function winToPlay() {
-  try {
-    var res = await apiReq('/api/transfer', 'POST', {});
-    toast('✅ ' + res.amount.toFixed(2) + ' ETB ወደ Play Wallet ተዛውሯል!');
-    await pollState();
-  } catch (e) { toast('❌ ' + e.message); }
 }
 
 async function sendDep() {
