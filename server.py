@@ -89,9 +89,18 @@ WIN_LINES = [[0,1,2,3,4],[5,6,7,8,9],[10,11,12,13,14],[15,16,17,18,19],[20,21,22
              [0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],
              [0,6,12,18,24],[4,8,12,16,20],[0,4,20,24]]
 check_win = lambda g, cs: next((ln for ln in WIN_LINES if all(g[i] == 'FREE' or g[i] in cs for i in ln)), None)
+BOT_NAMES = ["Ava","Noah","Mia","Ethan","Lina","Leo","Sara","Adam","Nora","Daniel","Maya","Sam","Luca","Zara","Omar","Ella","Yonas","Hana","Miki","Ruth","Kebede","Dawit","Selam","Abel","Liya","Mekdes","Nahom","Eden","Nati","Sami","Rami","Teddy","Martha","Helen","Robel","Meron","Kaleb","Mimi","Yonatan","Rahel","Nardos","Biruk","Saron","Nahom B","Elsa","Kalkidan","Mulu","Fikir","Solomon","Betty"]
+
+def make_bot_cards():
+  used, out = set(), []
+  for i, name in enumerate(BOT_NAMES):
+    no = 1001 + i
+    out.append({'uid': -1000-i, 'name': name, 'grid': gen_card(no), 'bot': True})
+  return out
+
 def mk_room(s):
   return {'stake': s, 'phase': 'WAITING', 'countdown': CD_SEC, 'cards': {}, 'called': [], 'deck': [],
-          'tick': time.time(), 'winner': None, 'win_until': 0.0, 'round_id': secrets.token_hex(12)}
+          'tick': time.time(), 'winner': None, 'win_until': 0.0, 'round_id': secrets.token_hex(12), 'bot_cards': make_bot_cards()}
 
 def save_room(r, c=None):
   payload = json.dumps({k: r[k] for k in ('stake','phase','countdown','cards','called','deck','tick','winner','win_until','round_id')}, separators=(',', ':'))
@@ -116,6 +125,7 @@ def load_rooms():
       room['deck'] = [int(x) for x in room.get('deck', [])]
       room.setdefault('round_id', secrets.token_hex(12))
       room['tick'] = time.time()
+      room['bot_cards'] = make_bot_cards()
       if room['phase'] == 'WINNER':
         room['win_until'] = time.time() + min(WIN_SEC, max(0, float(room.get('win_until', 0)) - time.time()))
       elif room['phase'] == 'COUNTDOWN':
@@ -144,7 +154,7 @@ def finish_round(r, uid, name, cno, wl):
     save_room(r, c)
 
 def reset_room(r):
-  r.update({'phase': 'WAITING', 'countdown': CD_SEC, 'cards': {}, 'called': [], 'deck': [], 'winner': None, 'tick': time.time(), 'win_until': 0.0, 'round_id': secrets.token_hex(12)})
+  r.update({'phase': 'WAITING', 'countdown': CD_SEC, 'cards': {}, 'called': [], 'deck': [], 'winner': None, 'tick': time.time(), 'win_until': 0.0, 'round_id': secrets.token_hex(12), 'bot_cards': make_bot_cards()})
   save_room(r)
 
 def game_loop():
@@ -545,6 +555,7 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
     tk_c = sorted([k for k, v in r['cards'].items() if v['uid'] != u['uid']])
     snap = {'stake': r['stake'], 'phase': r['phase'], 'countdown': r['countdown'], 'players': n_players(r),
             'min_players': MIN_PLAYERS, 'total_cards': len(r['cards']), 'derash': derash(r),
+            'bots': [{'name': b['name'], 'card_no': i+1, 'progress': sum(1 for v in b['grid'] if v == 'FREE' or v in set(r['called']))} for i,b in enumerate(r.get('bot_cards', make_bot_cards()))],
             'taken_cards': tk_c, 'my_cards': my_c, 'my_boards': {str(n): r['cards'][n]['grid'] for n in my_c},
             'called': r['called'], 'winner': r['winner'], 'winner_left': max(0, int(r['win_until'] - time.time())) if r['phase'] == 'WINNER' else 0}
   with get_db() as c:
