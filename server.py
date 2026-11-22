@@ -98,6 +98,22 @@ def make_bot_cards():
     out.append({'uid': -1000-i, 'name': name, 'grid': gen_card(no), 'bot': True})
   return out
 
+def bot_practice_winner(r):
+  called = r.get('called', [])
+  if not called or r.get('phase') not in ('PLAYING', 'WINNER'):
+    return None
+  draw_order = {number: len(called) - idx for idx, number in enumerate(called)}
+  candidates = []
+  for i, bot in enumerate(r.get('bot_cards', [])):
+    line = check_win(bot['grid'], set(called))
+    if line:
+      completion = max(draw_order.get(bot['grid'][pos], 0) for pos in line if bot['grid'][pos] != 'FREE')
+      candidates.append((completion, i, bot, line))
+  if not candidates:
+    return None
+  _, i, bot, line = min(candidates, key=lambda item: (item[0], item[1]))
+  return {'name': bot['name'], 'card_no': i + 1, 'grid': bot['grid'], 'win_line': line, 'practice_only': True}
+
 def mk_room(s):
   return {'stake': s, 'phase': 'WAITING', 'countdown': CD_SEC, 'cards': {}, 'called': [], 'deck': [],
           'tick': time.time(), 'winner': None, 'win_until': 0.0, 'round_id': secrets.token_hex(12), 'bot_cards': make_bot_cards()}
@@ -561,6 +577,7 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
     snap = {'stake': r['stake'], 'phase': r['phase'], 'countdown': r['countdown'], 'players': n_players(r),
             'min_players': MIN_PLAYERS, 'total_cards': len(r['cards']), 'derash': derash(r),
             'bots': [{'name': b['name'], 'card_no': i+1, 'progress': sum(1 for v in b['grid'] if v == 'FREE' or v in set(r['called']))} for i,b in enumerate(r.get('bot_cards', make_bot_cards()))],
+            'bot_practice_winner': bot_practice_winner(r),
             'taken_cards': tk_c, 'my_cards': my_c, 'my_boards': {str(n): r['cards'][n]['grid'] for n in my_c},
             'called': r['called'], 'winner': r['winner'], 'winner_left': max(0, int(r['win_until'] - time.time())) if r['phase'] == 'WINNER' else 0}
   with get_db() as c:
