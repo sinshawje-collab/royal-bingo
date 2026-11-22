@@ -230,7 +230,11 @@ body.light .status-banner{color:#1d4ed8}
       <div class="shd"><span>📢 ለሁሉም ተጫዋቾች መልእክት</span></div>
       <p style="font-size:11.5px;color:var(--mut);margin:-3px 0 9px">መልእክቱን ጽፈህ ላክ ስትጫን ለሁሉም የተመዘገቡ ተጫዋቾች ይላካል።</p>
       <textarea id="adminBroadcastText" class="msgbox" maxlength="4000" placeholder="የቅዳሜ / እሁድ ማስታወቂያህን እዚህ ጻፍ..."></textarea>
+      <label for="adminBroadcastImage" style="display:block;margin-top:10px;font-size:12px;font-weight:700;color:var(--mut)">🖼️ ምስል አያይዝ (JPG / PNG / WEBP፣ ከ8MB በታች)</label>
+      <input id="adminBroadcastImage" type="file" accept="image/jpeg,image/png,image/webp" style="display:block;width:100%;margin-top:7px;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--card2);color:var(--txt);font-size:12px" />
+      <img id="adminBroadcastPreview" alt="የማስታወቂያ ምስል ቅድመ እይታ" style="display:none;max-width:100%;max-height:220px;object-fit:contain;border-radius:10px;margin-top:9px;border:1px solid var(--bd)" />
       <button id="adminBroadcastBtn" class="btnp" style="width:100%;margin-top:9px" onclick="sendAdminBroadcast()">📨 ለሁሉም ላክ</button>
+      <p style="font-size:10.5px;color:var(--mut);margin-top:8px">ከማስታወቂያው በታች 🎮 Play Now ቁልፍ ይታያል። ሲጫኑት ተጫዋቾች ወደ ጌሙ ይገባሉ።</p>
     </div>
   </section>
 
@@ -675,17 +679,44 @@ async function sendDep() {
 }
 
 
+document.getElementById('adminBroadcastImage').addEventListener('change', function() {
+  var file = this.files && this.files[0];
+  var preview = document.getElementById('adminBroadcastPreview');
+  if (!file) { preview.style.display = 'none'; preview.removeAttribute('src'); return; }
+  if (!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) {
+    this.value = ''; preview.style.display = 'none';
+    toast('❌ JPG, PNG ወይም WEBP ከ8MB በታች ይምረጡ!'); return;
+  }
+  var reader = new FileReader();
+  reader.onload = function() { preview.src = reader.result; preview.style.display = 'block'; };
+  reader.readAsDataURL(file);
+});
+
 async function sendAdminBroadcast() {
   var field = document.getElementById('adminBroadcastText');
+  var imageField = document.getElementById('adminBroadcastImage');
   var btn = document.getElementById('adminBroadcastBtn');
   var message = field.value.trim();
+  var file = imageField.files && imageField.files[0];
   if (!message) { toast('❌ መጀመሪያ መልእክቱን ጻፍ!'); return; }
-  if (!window.confirm('ይህን መልእክት ለሁሉም ተጫዋቾች መላክ ትፈልጋለህ?')) return;
+  if (!window.confirm('ይህን ማስታወቂያ' + (file ? ' ከምስሉ ጋር' : '') + ' ለሁሉም ተጫዋቾች መላክ ትፈልጋለህ?')) return;
   btn.disabled = true;
   btn.textContent = '⏳ በመላክ ላይ...';
   try {
-    var result = await apiReq('/api/admin/broadcast', 'POST', { message: message });
+    var image = null;
+    if (file) {
+      image = await new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function() { resolve(reader.result); };
+        reader.onerror = function() { reject(new Error('ምስሉን ማንበብ አልተቻለም!')); };
+        reader.readAsDataURL(file);
+      });
+    }
+    var result = await apiReq('/api/admin/broadcast', 'POST', { message: message, image: image });
     field.value = '';
+    imageField.value = '';
+    var preview = document.getElementById('adminBroadcastPreview');
+    preview.removeAttribute('src'); preview.style.display = 'none';
     toast('✅ ለ ' + result.sent + ' ተጫዋቾች ተልኳል' + (result.failed ? ' | አልተሳካላቸውም: ' + result.failed : ''));
   } catch (e) {
     toast('❌ ' + e.message);
