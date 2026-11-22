@@ -475,7 +475,7 @@ async def api_claim(req: Request, x_tg_init_data: str = Header(default='')):
   u, b = auth_user(x_tg_init_data), await req.json()
   try: st, cno = int(b.get('stake', 10)), int(b.get('card_no', 0))
   except (TypeError, ValueError): raise HTTPException(400, 'ልክ ያልሆነ ክፍል/ካርድ!')
-  if st not in rooms or not (1 <= cno <= 100): raise HTTPException(400, 'ልክ ያልሆነ ክፍል/ካርድ!')
+  if st not in rooms or not (1 <= cno <= 400): raise HTTPException(400, 'ልክ ያልሆነ ክፍል/ካርድ!')
   with room_lock:
     r = rooms[st]
     if r['phase'] != 'PLAYING': raise HTTPException(400, 'ጨዋታው አልተጀመረም!')
