@@ -495,7 +495,10 @@ def health(): return {'ok': True, 'time': int(time.time())}
 def head_root(): return Response(status_code=200)
 
 @app.get('/', response_class=HTMLResponse)
-def serve_app(): return FileResponse('index.html') if os.path.exists('index.html') else HTMLResponse('index.html missing', 404)
+def serve_app():
+  if not os.path.exists('index.html'):
+    return HTMLResponse('index.html missing', 404)
+  return FileResponse('index.html', headers={'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma': 'no-cache', 'Expires': '0'})
 
 @app.get('/api/state')
 def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
@@ -626,16 +629,16 @@ async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default
         photo = io.BytesIO(image_bytes)
         photo.name = image_name
         try:
-          bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\\n\\n{message}')
+          bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\n\n{message}')
           time.sleep(0.15)
           bot.send_message(uid, '👇 ጨዋታውን ለመክፈት ከታች ይጫኑ፦', reply_markup=keyboard)
         except Exception as photo_exc:
           print(f'Photo broadcast failed for {uid}: {type(photo_exc).__name__}: {photo_exc}')
           # Always deliver the text announcement with the Play Now button
           # even when Telegram cannot accept the attached image.
-          bot.send_message(uid, f'📢 ማስታወቂያ\\n\\n{message}', reply_markup=keyboard)
+          bot.send_message(uid, f'📢 ማስታወቂያ\n\n{message}', reply_markup=keyboard)
       else:
-        bot.send_message(uid, f'📢 ማስታወቂያ\\n\\n{message}', reply_markup=keyboard)
+        bot.send_message(uid, f'📢 ማስታወቂያ\n\n{message}', reply_markup=keyboard)
       sent += 1
       time.sleep(0.05)
     except Exception as exc:
