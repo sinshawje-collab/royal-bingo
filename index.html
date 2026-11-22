@@ -251,16 +251,20 @@ body.light .status-banner{color:#1d4ed8}
         <button class="btnw" onclick="openDrw('wd')">↑ ወጪ (WITHDRAW)</button>
       </div>
       <div id="depDrw" class="drw">
-        <div class="shd c-em">📲 የገቢ መመሪያ (TeleBirr / CBE)</div>
+        <div class="shd c-em">📲 የገቢ ክፍያ ዘዴ ይምረጡ</div>
+        <div class="tgrid" style="margin-bottom:12px">
+          <button type="button" id="depTeleBtn" class="tbtn on" onclick="selectDepositMethod('TeleBirr')">📲 TeleBirr</button>
+          <button type="button" id="depCbeBtn" class="tbtn" onclick="selectDepositMethod('CBE Birr')">🏦 CBE Birr</button>
+        </div>
         <div class="abox">
           <div class="arow">
-            <strong>TeleBirr: <span id="agPhone">0941882333</span></strong>
+            <strong><span id="agMethod">TeleBirr</span>: <span id="agPhone">0941882333</span></strong>
             <button class="cmini" onclick="cpTxt(document.getElementById('agPhone').textContent,'ቁጥሩ ተቀድቷል!')">ቅዳ</button>
           </div>
-          <div style="font-size:12px;color:var(--mut)">ስም፦ <strong id="agName">SINSHAW JEMANEH ESHETE</strong></div>
+          <div style="font-size:12px;color:var(--mut)">የአካውንት ስም፦ <strong id="agName">SINSHAW JEMANEH ESHETE</strong></div>
         </div>
         <div class="fstack">
-          <input id="depAmt" class="rinp" type="number" placeholder="የላኩት የብር መጠን (ዝቅተኛ 20 ETB)" />
+          <input id="depAmt" class="rinp" type="number" min="20" placeholder="የላኩት የብር መጠን (ዝቅተኛ 20 ETB)" />
           <input id="depTx" class="rinp" type="text" placeholder="የSMS Transaction ID ያስገቡ" />
           <button class="btnd" onclick="sendDep()">✔️ የገቢ ጥያቄ ለአድሚን ላክ</button>
         </div>
@@ -666,15 +670,25 @@ async function claimBingo(no) {
   busy = false;
 }
 
+var selectedDepositMethod = 'TeleBirr';
+function selectDepositMethod(method) {
+  selectedDepositMethod = method;
+  document.getElementById('depTeleBtn').classList.toggle('on', method === 'TeleBirr');
+  document.getElementById('depCbeBtn').classList.toggle('on', method === 'CBE Birr');
+  document.getElementById('agMethod').textContent = method;
+  var cfg = (latestState && latestState.config) || {};
+  document.getElementById('agPhone').textContent = method === 'CBE Birr' ? (cfg.cbe_phone || '0941882333') : (cfg.telebirr_phone || '0941882333');
+  document.getElementById('agName').textContent = method === 'CBE Birr' ? (cfg.cbe_name || 'SINSHAW JEMANEH ESHETE') : (cfg.telebirr_name || 'SINSHAW JEMANEH ESHETE');
+}
 async function sendDep() {
   var a = parseFloat(document.getElementById('depAmt').value);
   var tx = document.getElementById('depTx').value.trim();
   try {
-    await apiReq('/api/deposit', 'POST', { amount: a, tx_id: tx });
+    await apiReq('/api/deposit', 'POST', { amount: a, tx_id: tx, method: selectedDepositMethod });
     document.getElementById('depAmt').value = '';
     document.getElementById('depTx').value = '';
     document.getElementById('depDrw').classList.remove('on');
-    toast('✅ የገቢ ጥያቄዎ ለአድሚን ተልኳል! ሲጸድቅ ወዲያውኑ ይገባል።');
+    toast('✅ የ ' + selectedDepositMethod + ' ገቢ ጥያቄዎ ለአድሚን ተልኳል!');
   } catch (e) { toast('❌ ' + e.message); }
 }
 
