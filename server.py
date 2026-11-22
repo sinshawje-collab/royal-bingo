@@ -11,7 +11,7 @@ TOKEN = os.environ.get('BOT_TOKEN', '').strip().strip("'\"")
 try: ADMIN_ID = int(os.environ.get('ADMIN_ID', '0').strip().strip("'\"") or '0')
 except Exception: ADMIN_ID = 0
 
-DEFAULT_URL = 'https://royal-bingo-0ip6.onrender.com'
+DEFAULT_URL = 'https://royal-bingo-9u3a.onrender.com'
 APP_URL = (os.environ.get('APP_URL') or DEFAULT_URL).strip().strip("'\"").rstrip('/')
 APP_URL = ('https://' + APP_URL[8:]) if APP_URL.lower().startswith('https://') else DEFAULT_URL
 
@@ -625,9 +625,9 @@ async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default
       if image_bytes:
         photo = io.BytesIO(image_bytes)
         photo.name = image_name
-        bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\\n\\n{message}', reply_markup=keyboard)
+        bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\n\n{message}', reply_markup=keyboard)
       else:
-        bot.send_message(uid, f'📢 ማስታወቂያ\\n\\n{message}', reply_markup=keyboard)
+        bot.send_message(uid, f'📢 ማስታወቂያ\n\n{message}', reply_markup=keyboard)
       sent += 1
       time.sleep(0.04)
     except Exception:
