@@ -467,7 +467,8 @@ function renderState(d) {
   latestState = d;
   var u = d.user, r = d.room, cfg = d.config;
   document.getElementById('adminBroadcast').style.display = d.is_admin ? 'block' : 'none';
-  var botText = (r.bots || []).map(function(b) { return b.name + ' (' + b.progress + '/25)'; }).join(' · ');
+  var botText = '🤖 AI PRACTICE PLAYERS — ' + (r.bots || []).map(function(b) { return b.name + ' (' + b.progress + '/25)'; }).join(' · ');
+  if (r.bot_practice_winner) botText += ' | 🏆 Practice winner: ' + r.bot_practice_winner.name + ' — practice only, no cash prize.';
   ['botNamesLobby','botNamesPlay'].forEach(function(id) { var el=document.getElementById(id); if(el) el.textContent=botText; });
   var botCount = (r.bots || []).length;
   ['botRosterLobby','botRosterPlay'].forEach(function(id) { var el=document.getElementById(id); if(el) el.style.display=botCount ? 'block' : 'none'; });
