@@ -470,8 +470,7 @@ function renderState(d) {
   document.getElementById('prPly').textContent = u.matches_played;
   document.getElementById('prWin').textContent = u.wins;
   document.getElementById('prSup').textContent = cfg.support;
-  document.getElementById('agName').textContent = cfg.telebirr_name;
-  document.getElementById('agPhone').textContent = cfg.telebirr_phone;
+  selectDepositMethod(selectedDepositMethod);
 
   if (r.phase === 'WAITING' || r.phase === 'COUNTDOWN') {
     document.getElementById('winOv').classList.remove('on');
