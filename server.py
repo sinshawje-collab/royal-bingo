@@ -625,13 +625,18 @@ async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default
       if image_bytes:
         photo = io.BytesIO(image_bytes)
         photo.name = image_name
-        bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\n\n{message}', reply_markup=keyboard)
+        # Send the image first, then a separate Play Now message so the
+        # game button is still delivered even if Telegram rejects the photo.
+        bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\\n\\n{message}')
+        time.sleep(0.15)
+        bot.send_message(uid, '👇 ጨዋታውን ለመክፈት ከታች ይጫኑ፦', reply_markup=keyboard)
       else:
-        bot.send_message(uid, f'📢 ማስታወቂያ\n\n{message}', reply_markup=keyboard)
+        bot.send_message(uid, f'📢 ማስታወቂያ\\n\\n{message}', reply_markup=keyboard)
       sent += 1
-      time.sleep(0.04)
-    except Exception:
+      time.sleep(0.05)
+    except Exception as exc:
       failed += 1
+      print(f'Broadcast failed for {uid}: {type(exc).__name__}: {exc}')
   return {'ok': True, 'sent': sent, 'failed': failed, 'total': len(uids)}
 
 @app.post('/api/withdraw')
