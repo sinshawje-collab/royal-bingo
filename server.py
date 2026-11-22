@@ -47,6 +47,8 @@ def init_db():
     CREATE TABLE IF NOT EXISTS house_stats (id INTEGER PRIMARY KEY CHECK (id=1),
       total_commission REAL DEFAULT 0, total_rounds INTEGER DEFAULT 0);
     INSERT OR IGNORE INTO house_stats VALUES (1, 0, 0);
+    CREATE TABLE IF NOT EXISTS game_rooms (stake INTEGER PRIMARY KEY, snapshot TEXT NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS game_payouts (round_id TEXT PRIMARY KEY, uid INTEGER NOT NULL, prize REAL NOT NULL, card_no INTEGER NOT NULL, created_at INTEGER NOT NULL);
     """)
     cols = {row['name'] for row in c.execute('PRAGMA table_info(requests)').fetchall()}
     if 'reference' not in cols:
@@ -76,7 +78,42 @@ WIN_LINES = [[0,1,2,3,4],[5,6,7,8,9],[10,11,12,13,14],[15,16,17,18,19],[20,21,22
              [0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],
              [0,6,12,18,24],[4,8,12,16,20],[0,4,20,24]]
 check_win = lambda g, cs: next((ln for ln in WIN_LINES if all(g[i] == 'FREE' or g[i] in cs for i in ln)), None)
-mk_room = lambda s: {'stake': s, 'phase': 'WAITING', 'countdown': CD_SEC, 'cards': {}, 'called': [], 'deck': [], 'tick': time.time(), 'winner': None, 'win_until': 0.0}
+def mk_room(s):
+  return {'stake': s, 'phase': 'WAITING', 'countdown': CD_SEC, 'cards': {}, 'called': [], 'deck': [],
+          'tick': time.time(), 'winner': None, 'win_until': 0.0, 'round_id': secrets.token_hex(12)}
+
+def save_room(r, c=None):
+  payload = json.dumps({k: r[k] for k in ('stake','phase','countdown','cards','called','deck','tick','winner','win_until','round_id')}, separators=(',', ':'))
+  if c is not None:
+    c.execute('INSERT INTO game_rooms(stake,snapshot,updated_at) VALUES(?,?,?) ON CONFLICT(stake) DO UPDATE SET snapshot=excluded.snapshot, updated_at=excluded.updated_at', (r['stake'], payload, int(time.time())))
+  else:
+    with get_db() as db:
+      db.execute('INSERT INTO game_rooms(stake,snapshot,updated_at) VALUES(?,?,?) ON CONFLICT(stake) DO UPDATE SET snapshot=excluded.snapshot, updated_at=excluded.updated_at', (r['stake'], payload, int(time.time())))
+
+def load_rooms():
+  with get_db() as c:
+    rows = c.execute('SELECT stake,snapshot FROM game_rooms').fetchall()
+  for row in rows:
+    try:
+      saved = json.loads(row['snapshot'])
+      stake = int(row['stake'])
+      if stake not in rooms or not isinstance(saved.get('cards'), dict): continue
+      room = mk_room(stake)
+      room.update(saved)
+      room['cards'] = {int(k): v for k, v in room['cards'].items()}
+      room['called'] = [int(x) for x in room.get('called', [])]
+      room['deck'] = [int(x) for x in room.get('deck', [])]
+      room.setdefault('round_id', secrets.token_hex(12))
+      room['tick'] = time.time()
+      if room['phase'] == 'WINNER':
+        room['win_until'] = time.time() + min(WIN_SEC, max(0, float(room.get('win_until', 0)) - time.time()))
+      elif room['phase'] == 'COUNTDOWN':
+        room['countdown'] = max(1, min(CD_SEC, int(room.get('countdown', CD_SEC))))
+      elif room['phase'] not in ('WAITING', 'PLAYING'):
+        room = mk_room(stake)
+      rooms[stake] = room
+    except Exception as exc:
+      print('Room restore error:', row['stake'], exc)
 rooms = {10: mk_room(10), 20: mk_room(20), 50: mk_room(50)}
 n_players = lambda r: len({v['uid'] for v in r['cards'].values()})
 derash = lambda r: round(len(r['cards']) * r['stake'] * (1.0 - HOUSE_CUT), 2)
@@ -84,15 +121,20 @@ derash = lambda r: round(len(r['cards']) * r['stake'] * (1.0 - HOUSE_CUT), 2)
 def finish_round(r, uid, name, cno, wl):
   prize = derash(r)
   comm = round(len(r['cards']) * r['stake'] - prize, 2)
-  with get_db() as c:
-    c.execute('UPDATE users SET win_wallet=win_wallet+?, wins=wins+1, total_won=total_won+? WHERE uid=?', (prize, prize, uid))
-    add_tx(c, uid, '🏆', f'BINGO አሸነፉ! (Card #{cno})', prize)
-    c.execute('UPDATE house_stats SET total_commission=total_commission+?, total_rounds=total_rounds+1 WHERE id=1', (comm,))
   r['phase'], r['win_until'] = 'WINNER', time.time() + WIN_SEC
   r['winner'] = {'uid': uid, 'name': name, 'card_no': cno, 'prize': prize, 'grid': r['cards'][cno]['grid'], 'win_line': wl}
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    cur = c.execute('INSERT OR IGNORE INTO game_payouts(round_id,uid,prize,card_no,created_at) VALUES(?,?,?,?,?)', (r['round_id'], uid, prize, cno, int(time.time())))
+    if cur.rowcount == 1:
+      c.execute('UPDATE users SET win_wallet=win_wallet+?, wins=wins+1, total_won=total_won+? WHERE uid=?', (prize, prize, uid))
+      add_tx(c, uid, '🏆', f'BINGO አሸነፉ! (Card #{cno})', prize)
+      c.execute('UPDATE house_stats SET total_commission=total_commission+?, total_rounds=total_rounds+1 WHERE id=1', (comm,))
+    save_room(r, c)
 
 def reset_room(r):
-  r.update({'phase': 'WAITING', 'countdown': CD_SEC, 'cards': {}, 'called': [], 'deck': [], 'winner': None, 'tick': time.time()})
+  r.update({'phase': 'WAITING', 'countdown': CD_SEC, 'cards': {}, 'called': [], 'deck': [], 'winner': None, 'tick': time.time(), 'win_until': 0.0, 'round_id': secrets.token_hex(12)})
+  save_room(r)
 
 def game_loop():
   while True:
@@ -433,6 +475,7 @@ if os.path.isdir('sounds'): app.mount('/sounds', StaticFiles(directory='sounds')
 @app.on_event('startup')
 def on_startup():
   init_db()
+  load_rooms()
   threading.Thread(target=game_loop, daemon=True).start()
   threading.Thread(target=run_bot, daemon=True).start()
 
