@@ -44,12 +44,39 @@ def set_min_players(value, persist=True):
       c.execute('UPDATE game_settings SET value=? WHERE key=?', (value, 'min_players'))
   return value
 
+GAME_PAUSED = False
+GAME_PAUSED_AT = 0.0
+
+def set_games_paused(paused):
+  global GAME_PAUSED, GAME_PAUSED_AT
+  paused = bool(paused)
+  with room_lock:
+    if paused and not GAME_PAUSED:
+      GAME_PAUSED = True
+      GAME_PAUSED_AT = time.time()
+    elif not paused and GAME_PAUSED:
+      elapsed = max(0.0, time.time() - (GAME_PAUSED_AT or time.time()))
+      for room in rooms.values():
+        room['tick'] = float(room.get('tick', time.time())) + elapsed
+        if room.get('phase') == 'WINNER':
+          room['win_until'] = float(room.get('win_until', time.time())) + elapsed
+        save_room(room)
+      GAME_PAUSED = False
+      GAME_PAUSED_AT = 0.0
+    with get_db() as c:
+      c.execute('INSERT INTO game_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', ('games_paused', 1 if GAME_PAUSED else 0))
+  return GAME_PAUSED
+
 def load_game_settings():
+  global GAME_PAUSED, GAME_PAUSED_AT
   try:
     with get_db() as c:
       row = c.execute('SELECT value FROM game_settings WHERE key=?', ('min_players',)).fetchone()
+      paused_row = c.execute('SELECT value FROM game_settings WHERE key=?', ('games_paused',)).fetchone()
     if row:
       set_min_players(int(row['value']), persist=False)
+    GAME_PAUSED = bool(int(paused_row['value'])) if paused_row else False
+    GAME_PAUSED_AT = time.time() if GAME_PAUSED else 0.0
   except Exception as exc:
     print('Game settings load failed:', type(exc).__name__, str(exc))
 
@@ -274,6 +301,9 @@ def start_round(r, now):
 
 def game_loop():
   while True:
+    if GAME_PAUSED:
+      time.sleep(0.35)
+      continue
     now = time.time()
     with room_lock:
       for r in rooms.values():
@@ -509,6 +539,8 @@ def section_kb(section, action=None, label='📲 Open Royal Bingo'):
 
 def adm_kb():
   kb = IKB()
+  kb.row(IBtn('⏸️ ጨዋታዎችን አቁም' if not GAME_PAUSED else '▶️ ጨዋታዎችን ጀምር / ቀጥል', callback_data='adm_games_pause' if not GAME_PAUSED else 'adm_games_resume'))
+  kb.row(IBtn('📊 የጨዋታ ሁኔታ', callback_data='adm_games_status'))
   kb.row(IBtn('📊 ሪፖርትና ትርፍ', callback_data='adm_stats'), IBtn('👥 ተጫዋቾች', callback_data='adm_users'))
   kb.row(IBtn('➕ ብር ጨምር', callback_data='adm_add'), IBtn('➖ ብር ቀንስ', callback_data='adm_sub'))
   kb.row(IBtn(f'⚙️ ዝቅተኛ ተጫዋች: {MIN_PLAYERS}', callback_data='adm_minp'))
@@ -740,7 +772,15 @@ if bot:
     if d.startswith(('ap_', 'rj_')) and not is_finance_admin(call.from_user.id):
       return bot.answer_callback_query(call.id, '⏳ የገቢና ወጪ ማጽደቅ ተራው አሁን የሌላ አድሚን ነው።', show_alert=True)
     bot.answer_callback_query(call.id)
-    if d == 'adm_switch_finance':
+    if d in ('adm_games_pause', 'adm_games_resume'):
+      paused = set_games_paused(d == 'adm_games_pause')
+      status = '⏸️ ሁሉም ጨዋታዎች ቆመዋል። የካርድና የገንዘብ መዝገቦች አልተሰረዙም።' if paused else '▶️ ጨዋታዎች እንደገና ቀጥለዋል።'
+      bot.send_message(call.message.chat.id, status, reply_markup=adm_kb())
+    elif d == 'adm_games_status':
+      with room_lock:
+        report = '\\n'.join(f'{st} ETB | {room["phase"]} | {n_players(room)} ተጫዋች | {len(room["cards"])} ካርድ | {derash(room):.2f} ETB' for st, room in rooms.items())
+      bot.send_message(call.message.chat.id, ('⏸️ አጠቃላይ ሁኔታ: PAUSED' if GAME_PAUSED else '🟢 አጠቃላይ ሁኔታ: RUNNING') + '\\n\\n' + report, reply_markup=adm_kb())
+    elif d == 'adm_switch_finance':
       try:
         t = switch_finance_turn()
         bot.send_message(call.message.chat.id, f'✅ የገቢና ወጪ ተራ ተቀይሯል።\\n🟢 አሁን ተረኛ: {t["active_name"]}\\n🔜 ቀጣይ: {t["next_name"]}\\n⏳ አዲሱ 6 ሰዓት ቆጠራ ተጀምሯል።', reply_markup=adm_kb())
@@ -1005,13 +1045,13 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
     admin_rooms = {}
     if admin_view:
       for room_stake, room in rooms.items():
-        admin_rooms[str(room_stake)] = {'stake': room_stake, 'phase': room['phase'], 'players': n_players(room), 'derash': derash(room), 'called': list(room['called']), 'upcoming': list(reversed(room['deck'])) if room['phase'] == 'PLAYING' else [], 'remaining': len(room['deck'])}
+        admin_rooms[str(room_stake)] = {'stake': room_stake, 'phase': room['phase'], 'players': n_players(room), 'derash': derash(room), 'called': list(room['called']), 'upcoming': list(reversed(room['deck'])) if room['phase'] == 'PLAYING' else [], 'remaining': len(room['deck']), 'total_cards': len(room['cards'])}
   with get_db() as c:
     txs = [dict(x) for x in c.execute('SELECT icon,title,amount,created_at, NULL AS status FROM transactions WHERE uid=? ORDER BY id DESC LIMIT 25', (u['uid'],)).fetchall()]
     pending = [dict(x) for x in c.execute("SELECT '⏳' AS icon, 'የወጪ ጥያቄ ('||method||') - PENDING' AS title, -amount AS amount, created_at, status FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending' AND details LIKE 'PENDING RESERVED |%' ORDER BY id DESC LIMIT 25", (u['uid'],)).fetchall()]
     txs = sorted(txs + pending, key=lambda x: x['created_at'], reverse=True)[:25]
     top = [dict(x) for x in c.execute('SELECT name,total_won FROM users WHERE total_won>0 ORDER BY total_won DESC LIMIT 10').fetchall()]
-  return {'admin_rooms': admin_rooms if admin_view else None, 'finance_service': finance_service_status(), 'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': admin_view,
+  return {'games_paused': GAME_PAUSED, 'admin_rooms': admin_rooms if admin_view else None, 'finance_service': finance_service_status(), 'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': admin_view,
           'finance_rotation': finance_rotation_status() if admin_view else None,
           'config': {**active_payment_accounts(), 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
 
@@ -1110,6 +1150,18 @@ async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
   except sqlite3.IntegrityError: raise HTTPException(409, 'ይህ Transaction ID ቀድሞ ተጠቅሟል!')
   return {'ok': True}
 
+
+@app.post('/api/admin/games/control')
+async def api_admin_games_control(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  body = await req.json()
+  action = body.get('action') if isinstance(body, dict) else None
+  if action not in ('pause', 'resume'):
+    raise HTTPException(400, 'pause ወይም resume ብቻ ይፈቀዳል!')
+  paused = set_games_paused(action == 'pause')
+  return {'ok': True, 'games_paused': paused}
 
 @app.post('/api/admin/finance/switch')
 async def api_admin_finance_switch(x_tg_init_data: str = Header(default='')):
