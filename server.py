@@ -1,4 +1,6 @@
-import base64, hashlib, hmac, io, json, math, os, random, secrets, sqlite3, threading, time, urllib.parse
+import base64, hashlib, hmac, io, json, math, os, random, secrets, threading, time, urllib.parse
+import psycopg as sqlite3
+from psycopg.rows import dict_row
 from contextlib import contextmanager
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,46 +23,84 @@ TB_PHONE = os.environ.get('TELEBIRR_PHONE', '0941882333')
 CBE_NAME = os.environ.get('CBE_BIRR_NAME', 'Sinshaw Jemaneh Eshete')
 CBE_PHONE = os.environ.get('CBE_BIRR_PHONE', '0941882333')
 DB_PATH = os.environ.get('DB_PATH', 'royal_bingo.db')
+DATABASE_URL = os.environ.get('DATABASE_URL', '').strip().strip("'\\\"")
 HOUSE_CUT, CD_SEC, CALL_SEC, WIN_SEC = 0.20, 0, 3.0, 10
 MIN_PLAYERS = int(os.environ.get('MIN_PLAYERS', '2') or '2')
 db_lock, room_lock = threading.RLock(), threading.RLock()
 
+class HybridRow(dict):
+  def __getitem__(self, key):
+    if isinstance(key, int):
+      return list(self.values())[key]
+    return super().__getitem__(key)
+
+class DBCursor:
+  def __init__(self, cursor, lastrowid=None):
+    self.cursor, self.lastrowid = cursor, lastrowid
+    self.rowcount = cursor.rowcount
+  def _row(self, row):
+    return HybridRow(row) if row is not None else None
+  def fetchone(self):
+    return self._row(self.cursor.fetchone())
+  def fetchall(self):
+    return [self._row(row) for row in self.cursor.fetchall()]
+
+class DBConnection:
+  def __init__(self, connection):
+    self.connection = connection
+  def execute(self, sql, params=()):
+    query = sql.replace('?', '%s').replace('BEGIN IMMEDIATE', 'BEGIN')
+    query = query.replace('MAX(0,play_wallet-%s)', 'GREATEST(0,play_wallet-%s)')
+    query = query.replace('INSERT OR IGNORE INTO', 'INSERT INTO')
+    if 'INSERT OR IGNORE' in sql.upper():
+      query += ' ON CONFLICT DO NOTHING'
+    if query.lstrip().upper().startswith('INSERT INTO REQUESTS') and 'RETURNING' not in query.upper():
+      query += ' RETURNING id'
+      cur = self.connection.execute(query, params)
+      inserted = cur.fetchone()
+      return DBCursor(cur, inserted['id'] if inserted else None)
+    return DBCursor(self.connection.execute(query, params))
+
 @contextmanager
 def get_db():
+  if not DATABASE_URL:
+    raise RuntimeError('DATABASE_URL is required; configure the Neon PostgreSQL connection in Render.')
   with db_lock:
-    c = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30)
-    c.row_factory = sqlite3.Row
-    c.execute('PRAGMA foreign_keys=ON')
-    c.execute('PRAGMA busy_timeout=30000')
-    try: yield c; c.commit()
-    finally: c.close()
+    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row, connect_timeout=15)
+    c = DBConnection(conn)
+    try:
+      yield c
+      conn.commit()
+    except Exception:
+      conn.rollback()
+      raise
+    finally:
+      conn.close()
 
 def init_db():
   with get_db() as c:
-    c.execute('PRAGMA journal_mode=WAL')
-    c.executescript("""
-    CREATE TABLE IF NOT EXISTS users (uid INTEGER PRIMARY KEY, name TEXT DEFAULT 'Player', phone TEXT,
-      play_wallet REAL DEFAULT 0, win_wallet REAL DEFAULT 0, matches_played INTEGER DEFAULT 0,
-      wins INTEGER DEFAULT 0, total_won REAL DEFAULT 0, referred_by INTEGER, created_at INTEGER);
-    CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER,
-      icon TEXT, title TEXT, amount REAL, created_at INTEGER);
-    CREATE TABLE IF NOT EXISTS requests (id INTEGER PRIMARY KEY AUTOINCREMENT, req_type TEXT, uid INTEGER,
-      amount REAL, method TEXT, details TEXT, status TEXT DEFAULT 'pending', created_at INTEGER, reference TEXT);
-    CREATE TABLE IF NOT EXISTS house_stats (id INTEGER PRIMARY KEY CHECK (id=1),
-      total_commission REAL DEFAULT 0, total_rounds INTEGER DEFAULT 0);
-    INSERT OR IGNORE INTO house_stats VALUES (1, 0, 0);
-    CREATE TABLE IF NOT EXISTS game_rooms (stake INTEGER PRIMARY KEY, snapshot TEXT NOT NULL, updated_at INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS game_payouts (round_id TEXT PRIMARY KEY, uid INTEGER NOT NULL, prize REAL NOT NULL, card_no INTEGER NOT NULL, created_at INTEGER NOT NULL);
-    """)
-    cols = {row['name'] for row in c.execute('PRAGMA table_info(requests)').fetchall()}
-    if 'reference' not in cols:
-      c.execute('ALTER TABLE requests ADD COLUMN reference TEXT')
-    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_requests_reference ON requests(reference) WHERE reference IS NOT NULL AND reference <> ''")
-    c.execute("CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)")
+    statements = [
+      """CREATE TABLE IF NOT EXISTS users (uid BIGINT PRIMARY KEY, name TEXT DEFAULT 'Player', phone TEXT,
+        play_wallet DOUBLE PRECISION DEFAULT 0, win_wallet DOUBLE PRECISION DEFAULT 0, matches_played INTEGER DEFAULT 0,
+        wins INTEGER DEFAULT 0, total_won DOUBLE PRECISION DEFAULT 0, referred_by BIGINT, created_at BIGINT)""",
+      """CREATE TABLE IF NOT EXISTS transactions (id BIGSERIAL PRIMARY KEY, uid BIGINT, icon TEXT,
+        title TEXT, amount DOUBLE PRECISION, created_at BIGINT)""",
+      """CREATE TABLE IF NOT EXISTS requests (id BIGSERIAL PRIMARY KEY, req_type TEXT, uid BIGINT,
+        amount DOUBLE PRECISION, method TEXT, details TEXT, status TEXT DEFAULT 'pending', created_at BIGINT, reference TEXT)""",
+      """CREATE TABLE IF NOT EXISTS house_stats (id INTEGER PRIMARY KEY CHECK (id=1),
+        total_commission DOUBLE PRECISION DEFAULT 0, total_rounds INTEGER DEFAULT 0)""",
+      "INSERT INTO house_stats VALUES (1, 0, 0) ON CONFLICT DO NOTHING",
+      """CREATE TABLE IF NOT EXISTS game_rooms (stake INTEGER PRIMARY KEY, snapshot TEXT NOT NULL, updated_at BIGINT NOT NULL)""",
+      """CREATE TABLE IF NOT EXISTS game_payouts (round_id TEXT PRIMARY KEY, uid BIGINT NOT NULL, prize DOUBLE PRECISION NOT NULL, card_no INTEGER NOT NULL, created_at BIGINT NOT NULL)""",
+      "CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at BIGINT NOT NULL)",
+      "CREATE UNIQUE INDEX IF NOT EXISTS uq_requests_reference ON requests(reference) WHERE reference IS NOT NULL AND reference <> ''"
+    ]
+    for statement in statements:
+      c.execute(statement)
     if not c.execute("SELECT 1 FROM schema_migrations WHERE name='unify_player_wallets_v1'").fetchone():
       # Preserve every player's full balance by combining both legacy wallets exactly once.
       c.execute("UPDATE users SET play_wallet=COALESCE(play_wallet,0)+COALESCE(win_wallet,0), win_wallet=0")
-      c.execute("INSERT INTO schema_migrations(name,applied_at) VALUES('unify_player_wallets_v1',?)", (int(time.time()),))
+      c.execute("INSERT INTO schema_migrations(name,applied_at) VALUES(?,?)", ('unify_player_wallets_v1', int(time.time())))
 
 def ensure_user(uid, name='Player', ref=None):
   with get_db() as c:
@@ -404,8 +444,8 @@ if bot:
       MIN_PLAYERS = 1 if MIN_PLAYERS >= 3 else MIN_PLAYERS + 1
       bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=adm_kb())
       bot.send_message(call.message.chat.id, f'⚙️ ዝቅተኛ ተጫዋች ወደ {MIN_PLAYERS} ተቀይሯል።')
-    elif d == 'adm_backup' and os.path.exists(DB_PATH):
-      with open(DB_PATH, 'rb') as f: bot.send_document(call.message.chat.id, f, caption='💾 DB Backup')
+    elif d == 'adm_backup':
+      bot.send_message(call.message.chat.id, '💾 Neon PostgreSQL ዳታቤዝ በRender local file አይደለም። Backup ከNeon Console ወይም pg_dump መውሰድ ያስፈልጋል።')
     elif d == 'adm_bcast':
       bot.register_next_step_handler(bot.send_message(call.message.chat.id, '📢 ለሁሉም የሚላከውን መልዕክት ይጻፉ፦'), s_bcast)
     elif d.startswith(('ap_', 'rj_')):
