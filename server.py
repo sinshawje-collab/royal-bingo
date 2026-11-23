@@ -113,7 +113,13 @@ def init_db():
       "CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at BIGINT NOT NULL)",
       "CREATE TABLE IF NOT EXISTS admin_rotation (id INTEGER PRIMARY KEY CHECK (id=1), start_at BIGINT NOT NULL)",
       "INSERT INTO admin_rotation(id,start_at) VALUES(1," + str(int(time.time())) + ") ON CONFLICT(id) DO NOTHING",
-      "CREATE UNIQUE INDEX IF NOT EXISTS uq_requests_reference ON requests(reference) WHERE reference IS NOT NULL AND reference <> ''"
+      "CREATE UNIQUE INDEX IF NOT EXISTS uq_requests_reference ON requests(reference) WHERE reference IS NOT NULL AND reference <> ''",
+      # Support high-frequency per-player history and pending-withdrawal queries.
+      "CREATE INDEX IF NOT EXISTS idx_transactions_uid_id ON transactions(uid, id DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_requests_uid_pending ON requests(uid, req_type, status, id DESC)",
+      # Support phone verification/lookups and the public top-winners list.
+      "CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone IS NOT NULL",
+      "CREATE INDEX IF NOT EXISTS idx_users_top_winners ON users(total_won DESC) WHERE total_won > 0"
     ]
     for statement in statements:
       c.execute(statement)
