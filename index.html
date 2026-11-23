@@ -320,6 +320,14 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
         <div class="admin-subhead">ወደፊት የሚወጡ ኳሶች</div><div id="adminUpcomingBalls" class="admin-balls-grid"></div>
         <div class="admin-subhead">ቀድሞ የተጠሩ ኳሶች</div><div id="adminCalledBalls" class="admin-balls-grid admin-called-grid"></div>
       </div>
+      <div class="admin-overview-card" id="adminProfitPanel" style="margin-top:12px;border:1px solid #16a34a;background:linear-gradient(145deg,#102b2a,#100b2a)">
+        <div class="admin-section-head"><div><div class="admin-eyebrow">HOUSE EARNINGS</div><div class="admin-section-title">💰 BINGO PROFIT REPORT · የቢንጎ ትርፍ</div></div><button class="admin-room-tab" onclick="loadAdminProfit(true)">↻ Refresh</button></div>
+        <div class="admin-control-desc">ከካርድ ሽያጭ የተሰበሰበ ጠቅላላ ገቢ − ለአሸናፊዎች የተከፈለ ገንዘብ = የቤቱ ትርፍ (20%)።</div>
+        <div id="adminProfitSummary" class="admin-room-stats" style="margin-top:10px"><div class="admin-empty">ሪፖርት በመጫን ላይ...</div></div>
+        <div class="admin-subhead">ያለፉት 30 ቀናት</div><div id="adminProfitRecent" class="admin-room-stats"></div>
+        <div class="admin-subhead">በጨዋታ ዋጋ የተከፋፈለ ትርፍ</div><div id="adminProfitByStake" class="admin-room-stats"></div>
+        <div class="admin-safe-note">ℹ️ የጠቅላላ ትርፍ መረጃ ከቀድሞው የhouse_stats መዝገብ ይመጣል። የ30 ቀንና የ10/20/50 ETB ዝርዝር ከዚህ ሪፖርት መጀመሪያ በኋላ የሚጠናቀቁ ዙሮችን ያሳያል።</div>
+      </div>
     </div>
     <div id="lobbyView">
       <div id="lobbyHomeView">
@@ -691,6 +699,7 @@ function renderState(d) {
   var adminDashboard = document.getElementById('adminDashboard');
   if (adminDashboard) adminDashboard.style.display = showAdminTools ? 'block' : 'none';
   renderAdminDashboard(showAdminTools ? d.admin_rooms : null);
+  if (showAdminTools) loadAdminProfit(false);
   var rotation = showAdminTools ? d.finance_rotation : null;
   var rotationBox = document.getElementById('financeRotationBox');
   if (rotationBox) rotationBox.style.display = showAdminTools ? 'block' : 'none';
@@ -919,6 +928,28 @@ async function adminGameControl(action) {
   } catch(e) { toast('❌ '+e.message); }
   finally { pause.disabled=false; resume.disabled=false; }
 }
+var adminProfitLastLoad = 0;
+async function loadAdminProfit(force) {
+  if (!adminSessionConfirmed) return;
+  if (!force && Date.now() - adminProfitLastLoad < 20000) return;
+  adminProfitLastLoad = Date.now();
+  var summary = document.getElementById('adminProfitSummary');
+  try {
+    var p = await apiReq('/api/admin/profit');
+    function metric(label,value,color) {
+      return '<div class="admin-stat"><label>'+label+'</label><strong style="color:'+(color||'var(--txt)')+'">'+Number(value||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' ETB</strong></div>';
+    }
+    summary.innerHTML = metric('LIFETIME HOUSE PROFIT',p.lifetime_profit,'#4ade80') + metric('TOTAL WINNER PAYOUTS',p.lifetime_payouts,'#fbbf24') + metric('COMPLETED ROUNDS',p.lifetime_rounds);
+    var r=p.recent_30d||{};
+    document.getElementById('adminProfitRecent').innerHTML=metric('CARD REVENUE',r.gross)+metric('WINNER PAYOUTS',r.prize)+metric('HOUSE PROFIT',r.profit,'#4ade80')+metric('ROUNDS',r.rounds);
+    var rows=Array.isArray(p.by_stake)?p.by_stake:[];
+    document.getElementById('adminProfitByStake').innerHTML=rows.length?rows.map(function(x){return '<div class="admin-stat"><label>'+x.stake+' ETB · '+x.rounds+' ROUNDS</label><strong style="color:#4ade80">'+Number(x.profit||0).toFixed(2)+' ETB</strong><small style="display:block;color:var(--mut)">ገቢ '+Number(x.gross||0).toFixed(2)+' · ክፍያ '+Number(x.prize||0).toFixed(2)+'</small></div>';}).join(''):'<div class="admin-empty">ከዚህ በኋላ የሚጠናቀቁ ዙሮች እዚህ ይመዘገባሉ።</div>';
+  } catch(e) {
+    summary.innerHTML='<div class="admin-empty">ሪፖርቱን መጫን አልተቻለም። '+e.message+'</div>';
+    adminProfitLastLoad=0;
+  }
+}
+
 function renderAdminDashboard(data) {
   if(!adminSessionConfirmed) return;
   var paused=!!(latestState && latestState.games_paused);
