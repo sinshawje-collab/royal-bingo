@@ -1005,7 +1005,7 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
     admin_rooms = {}
     if admin_view:
       for room_stake, room in rooms.items():
-        admin_rooms[str(room_stake)] = {'stake': room_stake, 'phase': room['phase'], 'players': n_players(room), 'derash': derash(room), 'called': list(room['called']), 'upcoming': list(reversed(room['deck'])) if room['phase'] == 'PLAYING' else [], 'remaining': len(room['deck))}
+        admin_rooms[str(room_stake)] = {'stake': room_stake, 'phase': room['phase'], 'players': n_players(room), 'derash': derash(room), 'called': list(room['called']), 'upcoming': list(reversed(room['deck'])) if room['phase'] == 'PLAYING' else [], 'remaining': len(room['deck'])}
   with get_db() as c:
     txs = [dict(x) for x in c.execute('SELECT icon,title,amount,created_at, NULL AS status FROM transactions WHERE uid=? ORDER BY id DESC LIMIT 25', (u['uid'],)).fetchall()]
     pending = [dict(x) for x in c.execute("SELECT '⏳' AS icon, 'የወጪ ጥያቄ ('||method||') - PENDING' AS title, -amount AS amount, created_at, status FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending' AND details LIKE 'PENDING RESERVED |%' ORDER BY id DESC LIMIT 25", (u['uid'],)).fetchall()]
