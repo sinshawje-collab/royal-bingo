@@ -481,6 +481,7 @@ if (tg) {
 var stake = 10, soundOn = true, autoMark = true;
 var lastCalledBall = null, lastWinnerCard = null, manualMarks = {};
 var latestState = null, busy = false, tTmr = null;
+var adminSessionConfirmed = false;
 var voiceAudio = new Audio(), actx = null;
 
 function ensureAudioUnlocked() {
@@ -624,18 +625,20 @@ function renderState(d) {
   var takenCards = Array.isArray(r.taken_cards) ? r.taken_cards : [];
   var myCards = Array.isArray(r.my_cards) ? r.my_cards : [];
   var myBoards = r.my_boards && typeof r.my_boards === 'object' ? r.my_boards : {};
-  document.getElementById('adminBroadcast').style.display = d.is_admin ? 'block' : 'none';
-  var rotation = d.is_admin ? d.finance_rotation : null;
+  if (d.is_admin) adminSessionConfirmed = true;
+  var showAdminTools = adminSessionConfirmed;
+  document.getElementById('adminBroadcast').style.display = showAdminTools ? 'block' : 'none';
+  var rotation = showAdminTools ? d.finance_rotation : null;
   var rotationBox = document.getElementById('financeRotationBox');
-  if (rotationBox) rotationBox.style.display = d.is_admin ? 'block' : 'none';
-  if (d.is_admin && rotation && rotation.configured) {
+  if (rotationBox) rotationBox.style.display = showAdminTools ? 'block' : 'none';
+  if (showAdminTools && rotation && rotation.configured) {
     document.getElementById('financeActiveName').textContent = rotation.active_name;
     document.getElementById('financeNextName').textContent = rotation.next_name;
     var left = Math.max(0, Number(rotation.remaining || 0));
     var hh = Math.floor(left / 3600), mm = Math.floor((left % 3600) / 60), ss = left % 60;
     document.getElementById('financeCountdown').textContent = [hh,mm,ss].map(function(v){return String(v).padStart(2,'0')}).join(':');
     document.getElementById('financeVerifyNote').textContent = rotation.verified ? '' : '⚠️ የሁለተኛው አድሚን ማረጋገጫ አልተገኘም';
-  } else if (d.is_admin) {
+  } else if (showAdminTools) {
     document.getElementById('financeActiveName').textContent = '—';
     document.getElementById('financeNextName').textContent = '—';
     document.getElementById('financeCountdown').textContent = '--:--:--';
