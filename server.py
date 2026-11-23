@@ -27,9 +27,29 @@ DB_PATH = os.environ.get('DB_PATH', 'royal_bingo.db')
 DATABASE_URL = os.environ.get('DATABASE_URL', '').strip().strip("'\\\"")
 HOUSE_CUT, CD_SEC, CALL_SEC, WIN_SEC = 0.20, 40, 3.0, 10
 MIN_PLAYERS_BY_STAKE = {10: 1, 20: 1, 50: 1}
-MIN_PLAYERS = 1  # Admin display/default; each stake room uses MIN_PLAYERS_BY_STAKE.
+MIN_PLAYERS = 1
+
+def set_min_players(value, persist=True):
+  global MIN_PLAYERS, MIN_PLAYERS_BY_STAKE
+  value = max(1, min(400, int(value)))
+  MIN_PLAYERS = value
+  MIN_PLAYERS_BY_STAKE = {10: value, 20: value, 50: value}
+  if persist:
+    with get_db() as c:
+      c.execute('UPDATE game_settings SET value=? WHERE key=?', (value, 'min_players'))
+  return value
+
+def load_game_settings():
+  try:
+    with get_db() as c:
+      row = c.execute('SELECT value FROM game_settings WHERE key=?', ('min_players',)).fetchone()
+    if row:
+      set_min_players(int(row['value']), persist=False)
+  except Exception as exc:
+    print('Game settings load failed:', type(exc).__name__, str(exc))
+
 def min_players_for(stake):
-  return MIN_PLAYERS_BY_STAKE.get(int(stake), 1)
+  return MIN_PLAYERS_BY_STAKE.get(int(stake), MIN_PLAYERS)
 db_lock, room_lock = threading.RLock(), threading.RLock()
 
 class HybridRow(dict):
@@ -113,6 +133,8 @@ def init_db():
       "CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at BIGINT NOT NULL)",
       "CREATE TABLE IF NOT EXISTS admin_rotation (id INTEGER PRIMARY KEY CHECK (id=1), start_at BIGINT NOT NULL)",
       "INSERT INTO admin_rotation(id,start_at) VALUES(1," + str(int(time.time())) + ") ON CONFLICT(id) DO NOTHING",
+      "CREATE TABLE IF NOT EXISTS game_settings (key TEXT PRIMARY KEY, value INTEGER NOT NULL)",
+      "INSERT INTO game_settings(key,value) VALUES('min_players',1) ON CONFLICT(key) DO NOTHING",
       "CREATE UNIQUE INDEX IF NOT EXISTS uq_requests_reference ON requests(reference) WHERE reference IS NOT NULL AND reference <> ''",
       # Support high-frequency per-player history and pending-withdrawal queries.
       "CREATE INDEX IF NOT EXISTS idx_transactions_uid_id ON transactions(uid, id DESC)",
@@ -478,7 +500,9 @@ def adm_kb():
   kb = IKB()
   kb.row(IBtn('📊 ሪፖርትና ትርፍ', callback_data='adm_stats'), IBtn('👥 ተጫዋቾች', callback_data='adm_users'))
   kb.row(IBtn('➕ ብር ጨምር', callback_data='adm_add'), IBtn('➖ ብር ቀንስ', callback_data='adm_sub'))
-  kb.row(IBtn(f'⚙️ ዝቅተኛ ተጫዋች: {MIN_PLAYERS}', callback_data='adm_minp'), IBtn('💾 DB Backup', callback_data='adm_backup'))
+  kb.row(IBtn(f'⚙️ ዝቅተኛ ተጫዋች: {MIN_PLAYERS}', callback_data='adm_minp'))
+  kb.row(IBtn('➖ ቀንስ', callback_data='adm_minp_dec'), IBtn('➕ ጨምር', callback_data='adm_minp_inc'))
+  kb.row(IBtn('💾 DB Backup', callback_data='adm_backup'))
   kb.row(IBtn('⏱️ የገቢ/ወጪ ተራ ሰዓት', callback_data='adm_timer'))
   kb.row(IBtn('🔄 የገቢ/ወጪ ተራ ቀይር', callback_data='adm_switch_finance'))
   kb.row(IBtn('📢 ለሁሉም መልዕክት ላክ', callback_data='adm_bcast'))
@@ -734,9 +758,15 @@ if bot:
       act = 'add' if d == 'adm_add' else 'sub'
       bot.register_next_step_handler(bot.send_message(call.message.chat.id, '✏️ Player Phone ID እና መጠን ይላኩ (ምሳሌ፦ `+2519XXXXXXXX 100`)' , parse_mode='Markdown'), s_adm_bal, act)
     elif d == 'adm_minp':
-      MIN_PLAYERS = 1
-      bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=adm_kb())
-      bot.send_message(call.message.chat.id, '⚙️ አንድ ተጫዋች ብቻ ቢኖርም ጨዋታው ይቻላል። 40 ሰከንድ ቆጠራ ይኖራል።')
+      bot.send_message(call.message.chat.id, f'⚙️ የሁሉም የጨዋታ ክፍሎች ዝቅተኛ ተጫዋች ብዛት: {MIN_PLAYERS}\\n➕ ለመጨመር ጨምርን፣ ➖ ለመቀነስ ቀንስን ይጫኑ።', reply_markup=adm_kb())
+    elif d in ('adm_minp_inc', 'adm_minp_dec'):
+      change = 1 if d == 'adm_minp_inc' else -1
+      updated = set_min_players(MIN_PLAYERS + change)
+      try:
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=adm_kb())
+      except Exception:
+        pass
+      bot.send_message(call.message.chat.id, f'✅ ዝቅተኛ ተጫዋች ብዛት ወደ {updated} ተቀይሯል።\\n🎮 በ10/20/50 ETB ክፍሎች ሁሉ ይሠራል።\\n💾 ለውጡ በዳታቤዝ ተቀምጧል።', reply_markup=adm_kb())
     elif d == 'adm_backup':
       bot.send_message(call.message.chat.id, '💾 Neon PostgreSQL ዳታቤዝ በRender local file አይደለም። Backup ከNeon Console ወይም pg_dump መውሰድ ያስፈልጋል።')
     elif d == 'adm_bcast':
@@ -931,6 +961,7 @@ if os.path.isdir('assets'): app.mount('/assets', StaticFiles(directory='assets')
 @app.on_event('startup')
 def on_startup():
   init_db()
+  load_game_settings()
   load_rooms()
   threading.Thread(target=game_loop, daemon=True).start()
   threading.Thread(target=run_bot, daemon=True).start()
