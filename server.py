@@ -272,7 +272,35 @@ def auth_user(init_data: str):
     raise HTTPException(401, 'የTelegram መግቢያ መረጃ ተሳስቷል ወይም ጊዜው አልፎበታል። እባክዎ አፑን እንደገና ይክፈቱ!')
 
 bot = telebot.TeleBot(TOKEN) if TOKEN else None
-is_adm = lambda uid: ADMIN_ID != 0 and int(uid) == int(ADMIN_ID)
+
+# Grant the second administrator only after Telegram verifies their own contact.
+SECOND_ADMIN_PHONE = '0932760267'
+
+def normalize_phone(value):
+  digits = re.sub(r'\D', '', str(value or ''))
+  if digits.startswith('251') and len(digits) == 12:
+    return '+' + digits
+  if digits.startswith('0') and len(digits) == 10:
+    return '+251' + digits[1:]
+  return '+' + digits if digits else ''
+
+def admin_ids():
+  ids = {int(ADMIN_ID)} if ADMIN_ID else set()
+  target = normalize_phone(SECOND_ADMIN_PHONE)
+  if target:
+    with get_db() as c:
+      rows = c.execute('SELECT uid, phone FROM users WHERE phone IS NOT NULL').fetchall()
+    for row in rows:
+      if normalize_phone(row['phone']) == target:
+        ids.add(int(row['uid']))
+  return sorted(ids)
+
+def is_adm(uid):
+  try:
+    uid = int(uid)
+    return bool(ADMIN_ID and uid == int(ADMIN_ID)) or uid in admin_ids()
+  except Exception:
+    return False
 
 def menu_kb(uid=None):
   kb = RKB(resize_keyboard=True)
@@ -299,7 +327,8 @@ def notify_req(rtype, uid, amt, md, det, reference=None):
   with get_db() as c:
     rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at,reference) VALUES (?,?,?,?,?,?,?,?)',
                     (rtype, uid, float(amt), md, det, 'pending', int(time.time()), reference)).lastrowid
-  if not bot or ADMIN_ID == 0: return rid
+  aids = admin_ids()
+  if not bot or not aids: return rid
   kb = IKB()
   if rtype == 'deposit':
     hdr = '🔔 አዲስ የገቢ (DEPOSIT) ጥያቄ!'
@@ -307,8 +336,10 @@ def notify_req(rtype, uid, amt, md, det, reference=None):
   else:
     hdr = '🔔 አዲስ የወጪ (WITHDRAW) ጥያቄ!'
     kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
-  try: bot.send_message(ADMIN_ID, f'{hdr}\n\n🆔 Request #{rid}\n👤 {u["name"]}\n🆔 Player ID: {u["phone"] or "Not registered"}\n💵 {float(amt):.2f} ETB\n🏦 {md}\n📝 {det}', reply_markup=kb)
-  except Exception: pass
+  msg = f'{hdr}\\n\\n🆔 Request #{rid}\\n👤 {u["name"]}\\n🆔 Player ID: {u["phone"] or "Not registered"}\\n💵 {float(amt):.2f} ETB\\n🏦 {md}\\n📝 {det}'
+  for aid in aids:
+    try: bot.send_message(aid, msg, reply_markup=kb)
+    except Exception: pass
   return rid
 
 if bot:
@@ -761,11 +792,14 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
     rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at) VALUES (?,?,?,?,?,?,?)',
                     ('withdraw', u['uid'], amt, method, f'PENDING RESERVED | App Account: {ph}', 'pending', int(time.time()))).lastrowid
   try:
-    if bot and ADMIN_ID:
+    aids = admin_ids()
+    if bot and aids:
       kb = IKB()
       kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
       player_phone = u.get('phone') or 'Not registered'
-      bot.send_message(ADMIN_ID, f'🔔 አዲስ የወጪ ጥያቄ!\n\n🆔 Request #{rid}\n👤 {u["name"]}\n🆔 Player ID: {player_phone}\n💵 {amt:.2f} ETB\n🏦 የወጪ ዘዴ: {method}\n📱 የተቀባይ ቁጥር: {ph}\n⏳ ሁኔታ: PENDING', reply_markup=kb)
+      msg = f'🔔 አዲስ የወጪ ጥያቄ!\\n\\n🆔 Request #{rid}\\n👤 {u["name"]}\\n🆔 Player ID: {player_phone}\\n💵 {amt:.2f} ETB\\n🏦 የወጪ ዘዴ: {method}\\n📱 የተቀባይ ቁጥር: {ph}\\n⏳ ሁኔታ: PENDING'
+      for aid in aids:
+        try: bot.send_message(aid, msg, reply_markup=kb)
   except Exception:
     pass
   return {'ok': True}
