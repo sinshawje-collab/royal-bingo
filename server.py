@@ -162,6 +162,7 @@ def init_db():
       "INSERT INTO house_stats VALUES (1, 0, 0) ON CONFLICT DO NOTHING",
       """CREATE TABLE IF NOT EXISTS game_rooms (stake INTEGER PRIMARY KEY, snapshot TEXT NOT NULL, updated_at BIGINT NOT NULL)""",
       """CREATE TABLE IF NOT EXISTS game_payouts (round_id TEXT PRIMARY KEY, uid BIGINT NOT NULL, prize DOUBLE PRECISION NOT NULL, card_no INTEGER NOT NULL, created_at BIGINT NOT NULL)""",
+      """CREATE TABLE IF NOT EXISTS house_profit_events (round_id TEXT PRIMARY KEY, stake INTEGER NOT NULL, gross DOUBLE PRECISION NOT NULL, prize DOUBLE PRECISION NOT NULL, commission DOUBLE PRECISION NOT NULL, created_at BIGINT NOT NULL)""",
       "CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at BIGINT NOT NULL)",
       "CREATE TABLE IF NOT EXISTS admin_rotation (id INTEGER PRIMARY KEY CHECK (id=1), start_at BIGINT NOT NULL)",
       "INSERT INTO admin_rotation(id,start_at) VALUES(1," + str(int(time.time())) + ") ON CONFLICT(id) DO NOTHING",
@@ -285,6 +286,7 @@ def finish_round(r, uid, name, cno, wl):
       c.execute('UPDATE users SET play_wallet=play_wallet+?, wins=wins+1, total_won=total_won+? WHERE uid=?', (prize, prize, uid))
       add_tx(c, uid, '🏆', f'BINGO አሸነፉ! (Card #{cno})', prize)
       c.execute('UPDATE house_stats SET total_commission=total_commission+?, total_rounds=total_rounds+1 WHERE id=1', (comm,))
+      c.execute('INSERT INTO house_profit_events(round_id,stake,gross,prize,commission,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(round_id) DO NOTHING', (r['round_id'], r['stake'], round(len(r['cards']) * r['stake'], 2), prize, comm, int(time.time())))
     save_room(r, c)
 
 def reset_room(r):
@@ -1150,6 +1152,18 @@ async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
   except sqlite3.IntegrityError: raise HTTPException(409, 'ይህ Transaction ID ቀድሞ ተጠቅሟል!')
   return {'ok': True}
 
+
+@app.get('/api/admin/profit')
+def api_admin_profit(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  with get_db() as c:
+    house = c.execute('SELECT total_commission,total_rounds FROM house_stats WHERE id=1').fetchone() or {'total_commission': 0, 'total_rounds': 0}
+    payouts = c.execute('SELECT COALESCE(SUM(prize),0) AS total FROM game_payouts').fetchone()
+    recent = c.execute("SELECT COALESCE(SUM(gross),0) AS gross, COALESCE(SUM(prize),0) AS prize, COALESCE(SUM(commission),0) AS profit, COUNT(*) AS rounds FROM house_profit_events WHERE created_at >= ?", (int(time.time())-30*86400,)).fetchone()
+    by_stake = c.execute("SELECT stake, COALESCE(SUM(gross),0) AS gross, COALESCE(SUM(prize),0) AS prize, COALESCE(SUM(commission),0) AS profit, COUNT(*) AS rounds FROM house_profit_events GROUP BY stake ORDER BY stake").fetchall()
+  return {'lifetime_profit': round(float(house['total_commission'] or 0),2), 'lifetime_rounds': int(house['total_rounds'] or 0), 'lifetime_payouts': round(float(payouts['total'] or 0),2), 'recent_30d': dict(recent), 'by_stake': [dict(x) for x in by_stake], 'detail_tracking_since': 'feature_launch'}
 
 @app.post('/api/admin/games/control')
 async def api_admin_games_control(req: Request, x_tg_init_data: str = Header(default='')):
