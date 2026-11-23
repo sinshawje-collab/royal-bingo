@@ -410,15 +410,16 @@ def is_adm(uid):
     return False
 
 def menu_kb(uid=None):
-  # Two-column Telegram home menu inspired by the supplied Cheers Bingo example.
+  # Navigation buttons open the matching Mini App section directly.
+  # Registration and bot-only tools remain native Telegram actions.
   kb = RKB(resize_keyboard=True, row_width=2)
-  kb.row(KBtn('📝 Register'), KBtn('🎮 Play'))
-  kb.row(KBtn('💳 Deposit'), KBtn('📢 Join Channel'))
-  kb.row(KBtn('💸 Withdraw'), KBtn('🔄 Transfer'))
+  kb.row(KBtn('📝 Register'), KBtn('🎮 Play', web_app=WebAppInfo(url=APP_URL + '?section=bingo')))
+  kb.row(KBtn('💳 Deposit', web_app=WebAppInfo(url=APP_URL + '?section=wallet&action=deposit')), KBtn('📢 Join Channel'))
+  kb.row(KBtn('💸 Withdraw', web_app=WebAppInfo(url=APP_URL + '?section=wallet&action=withdraw')), KBtn('🔄 Transfer', web_app=WebAppInfo(url=APP_URL + '?section=wallet&action=transfer')))
   if uid and is_adm(uid):
-    kb.row(KBtn('👑 Admin Panel'), KBtn('💳 Balance'))
+    kb.row(KBtn('👑 Admin Panel'), KBtn('💳 Balance', web_app=WebAppInfo(url=APP_URL + '?section=wallet')))
   else:
-    kb.row(KBtn('💳 Balance'))
+    kb.row(KBtn('💳 Balance', web_app=WebAppInfo(url=APP_URL + '?section=wallet')))
   kb.row(KBtn('👥 Invite'), KBtn('🎧 Support'))
   kb.row(KBtn('📜 Rules'))
   return kb
