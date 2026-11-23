@@ -599,6 +599,10 @@ if bot:
     ref = int(ps[1]) if len(ps) > 1 and ps[1].isdigit() and int(ps[1]) != m.from_user.id else None
     telegram_name = ' '.join(x for x in [m.from_user.first_name, m.from_user.last_name] if x) or 'Player'
     u = ensure_user(m.from_user.id, telegram_name, ref)
+    # Administrators enter the control panel directly; no player registration or Play button required.
+    if is_adm(m.from_user.id):
+      bot.send_message(m.chat.id, '👑 ROYAL BINGO — እንኳን ወደ Admin Control Center በደህና መጡ!', reply_markup=menu_kb(m.from_user.id))
+      return bot.send_message(m.chat.id, '👑 የአድሚን መቆጣጠሪያ', reply_markup=adm_kb())
     if not u['phone']:
       kb = RKB(resize_keyboard=True, one_time_keyboard=True); kb.add(KBtn('📱 ስልክ ቁጥር አጋራ', request_contact=True))
       return bot.send_message(m.chat.id, '👑 እንኳን ወደ ROYAL BINGO በደህና መጡ!\n\nለመመዝገብ ስልክ ቁጥርዎን ያጋሩ 👇', reply_markup=kb)
@@ -630,6 +634,8 @@ if bot:
     bot.send_message(m.chat.id, f'✅ ተመዝግበዋል! ({m.contact.phone_number})', reply_markup=menu_kb(m.from_user.id))
     if verified_second_admin:
       bot.send_message(m.chat.id, '✅ የአድሚን ማረጋገጫ ተሳክቷል። የገቢ/ወጪ 6 ሰዓት ተራዎ አሁን ተጀምሯል። ከ6 ሰዓት በኋላ ወደ Sinshaw ይቀየራል።')
+    if is_adm(m.from_user.id):
+      return bot.send_message(m.chat.id, '👑 የአድሚን መቆጣጠሪያ', reply_markup=adm_kb())
     bot.send_message(m.chat.id, '🎰 ጨዋታውን ለመክፈት ከታች ይጫኑ 👇', reply_markup=play_kb('🎮 Play Now'))
 
   @bot.message_handler(commands=['takeover'])
