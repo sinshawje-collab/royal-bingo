@@ -1,4 +1,4 @@
-import base64, hashlib, hmac, io, json, math, os, random, secrets, threading, time, urllib.parse
+import base64, hashlib, hmac, io, json, math, os, random, re, secrets, threading, time, urllib.parse
 import psycopg
 sqlite3 = psycopg
 from psycopg.rows import dict_row
@@ -51,6 +51,8 @@ class DBConnection:
     self.connection = connection
   def execute(self, sql, params=()):
     query = sql.replace('?', '%s').replace('BEGIN IMMEDIATE', 'BEGIN')
+    # psycopg uses percent signs for placeholders; escape literal SQL LIKE wildcards.
+    query = re.sub(r'%(?![sbt])', '%%', query)
     query = query.replace('MAX(0,play_wallet-%s)', 'GREATEST(0,play_wallet-%s)')
     query = query.replace('INSERT OR IGNORE INTO', 'INSERT INTO')
     if 'INSERT OR IGNORE' in sql.upper():
