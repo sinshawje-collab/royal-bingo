@@ -328,8 +328,14 @@ def active_payment_accounts():
   if second_id and active_id == second_id:
     name, phone = 'BEREKET DAGNACHEW ALEMU', '0932760267'
   else:
-    name = os.environ.get('TELEBIRR_NAME', 'SINSHAW JEMANEH ESHETE')
-    phone = os.environ.get('TELEBIRR_PHONE', '0941882333')
+    tele_name = os.environ.get('TELEBIRR_NAME', 'SINSHAW JEMANEH ESHETE')
+    tele_phone = os.environ.get('TELEBIRR_PHONE', '0941882333')
+    cbe_name = os.environ.get('CBE_BIRR_NAME', 'Sinshaw Jemaneh Eshete')
+    cbe_phone = os.environ.get('CBE_BIRR_PHONE', '0941882333')
+    return {
+      'telebirr_name': tele_name, 'telebirr_phone': tele_phone,
+      'cbe_name': cbe_name, 'cbe_phone': cbe_phone
+    }
   return {
     'telebirr_name': name, 'telebirr_phone': phone,
     'cbe_name': name, 'cbe_phone': phone
