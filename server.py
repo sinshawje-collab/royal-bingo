@@ -515,19 +515,14 @@ def is_adm(uid):
     return False
 
 def menu_kb(uid=None):
-  # Admin accounts must never see player-facing reply-keyboard actions.
+  # Admin accounts get a persistent bottom reply keyboard with admin-only controls.
   if uid and is_adm(uid):
-    # Admin actions, including Mini App launch, are shown only as inline buttons in adm_kb().
-    return RKR()
-  # Keep Telegram menu actions as normal text buttons so player workflows run.
+    return adm_kb()
   kb = RKB(resize_keyboard=True, row_width=2)
   kb.row(KBtn('📝 Register'), KBtn('🎮 Play'))
   kb.row(KBtn('💳 Deposit'), KBtn('📢 Join Channel'))
   kb.row(KBtn('💸 Withdraw'), KBtn('🔄 Transfer'))
-  if uid and is_adm(uid):
-    kb.row(KBtn('👑 Admin Panel'), KBtn('💳 Balance'))
-  else:
-    kb.row(KBtn('💳 Balance'))
+  kb.row(KBtn('💳 Balance'))
   kb.row(KBtn('👥 Invite'), KBtn('🎧 Support'))
   kb.row(KBtn('📜 Rules'))
   return kb
@@ -543,19 +538,36 @@ def section_kb(section, action=None, label='📲 Open Royal Bingo'):
   kb.add(IBtn(label, web_app=WebAppInfo(url=APP_URL + query)))
   return kb
 
+ADMIN_REPLY_ACTIONS = {
+  '⏸️ ጨዋታዎችን አቁም': 'adm_games_pause',
+  '▶️ ጨዋታዎችን ጀምር / ቀጥል': 'adm_games_resume',
+  '📊 የጨዋታ ሁኔታ': 'adm_games_status',
+  '📊 ሪፖርትና ትርፍ': 'adm_stats',
+  '👥 ተጫዋቾች': 'adm_users',
+  '➕ ብር ጨምር': 'adm_add',
+  '➖ ብር ቀንስ': 'adm_sub',
+  '⚙️ ዝቅተኛ ተጫዋች': 'adm_minp',
+  '➖ ቀንስ': 'adm_minp_dec',
+  '➕ ጨምር': 'adm_minp_inc',
+  '💾 DB Backup': 'adm_backup',
+  '⏱️ የገቢ/ወጪ ተራ ሰዓት': 'adm_timer',
+  '🔄 የገቢ/ወጪ ተራ ቀይር': 'adm_switch_finance',
+  '📢 ለሁሉም መልዕክት ላክ': 'adm_bcast',
+}
+
 def adm_kb():
-  kb = IKB()
-  kb.row(IBtn('📱 ወደ Mini App ግባ', web_app=WebAppInfo(url=APP_URL)))
-  kb.row(IBtn('⏸️ ጨዋታዎችን አቁም' if not GAME_PAUSED else '▶️ ጨዋታዎችን ጀምር / ቀጥል', callback_data='adm_games_pause' if not GAME_PAUSED else 'adm_games_resume'))
-  kb.row(IBtn('📊 የጨዋታ ሁኔታ', callback_data='adm_games_status'))
-  kb.row(IBtn('📊 ሪፖርትና ትርፍ', callback_data='adm_stats'), IBtn('👥 ተጫዋቾች', callback_data='adm_users'))
-  kb.row(IBtn('➕ ብር ጨምር', callback_data='adm_add'), IBtn('➖ ብር ቀንስ', callback_data='adm_sub'))
-  kb.row(IBtn(f'⚙️ ዝቅተኛ ተጫዋች: {MIN_PLAYERS}', callback_data='adm_minp'))
-  kb.row(IBtn('➖ ቀንስ', callback_data='adm_minp_dec'), IBtn('➕ ጨምር', callback_data='adm_minp_inc'))
-  kb.row(IBtn('💾 DB Backup', callback_data='adm_backup'))
-  kb.row(IBtn('⏱️ የገቢ/ወጪ ተራ ሰዓት', callback_data='adm_timer'))
-  kb.row(IBtn('🔄 የገቢ/ወጪ ተራ ቀይር', callback_data='adm_switch_finance'))
-  kb.row(IBtn('📢 ለሁሉም መልዕክት ላክ', callback_data='adm_bcast'))
+  # Telegram reply keyboard stays visible at the bottom of the admin chat.
+  kb = RKB(resize_keyboard=True, row_width=2, is_persistent=True)
+  kb.row(KBtn('📱 ወደ Mini App ግባ', web_app=WebAppInfo(url=APP_URL)))
+  kb.row(KBtn('⏸️ ጨዋታዎችን አቁም' if not GAME_PAUSED else '▶️ ጨዋታዎችን ጀምር / ቀጥል'))
+  kb.row(KBtn('📊 የጨዋታ ሁኔታ'))
+  kb.row(KBtn('📊 ሪፖርትና ትርፍ'), KBtn('👥 ተጫዋቾች'))
+  kb.row(KBtn('➕ ብር ጨምር'), KBtn('➖ ብር ቀንስ'))
+  kb.row(KBtn('⚙️ ዝቅተኛ ተጫዋች'), KBtn('➖ ቀንስ'), KBtn('➕ ጨምር'))
+  kb.row(KBtn('💾 DB Backup'))
+  kb.row(KBtn('⏱️ የገቢ/ወጪ ተራ ሰዓት'))
+  kb.row(KBtn('🔄 የገቢ/ወጪ ተራ ቀይር'))
+  kb.row(KBtn('📢 ለሁሉም መልዕክት ላክ'))
   return kb
 
 def notify_req(rtype, uid, amt, md, det, reference=None):
@@ -778,6 +790,18 @@ if bot:
     except sqlite3.Error:
       bot.reply_to(m, '❌ ጥያቄውን ማስመዝገብ አልተቻለም። እባክዎ እንደገና ይሞክሩ።')
 
+  @bot.message_handler(func=lambda m: bool(m.text) and m.text in ADMIN_REPLY_ACTIONS)
+  def c_admin_reply_action(m):
+    if not is_adm(m.from_user.id):
+      return bot.reply_to(m, '⛔ ይህ ቁጥጥር ለአድሚኖች ብቻ ነው።')
+    action = ADMIN_REPLY_ACTIONS[m.text]
+    if action == 'adm_minp':
+      return bot.send_message(m.chat.id, f'⚙️ ዝቅተኛ ተጫዋች: {MIN_PLAYERS}\\n➖ ቀንስ ወይም ➕ ጨምር በታች ካሉት ቦቶኖች ይጫኑ።', reply_markup=adm_kb())
+    # Reuse the existing, permission-checked admin action handler for all other controls.
+    fake_message = type('AdminMessage', (), {'chat': m.chat, 'message_id': None, 'text': m.text})()
+    fake_call = type('AdminCall', (), {'id': None, 'from_user': m.from_user, 'data': action, 'message': fake_message})()
+    return cb_adm(fake_call)
+
   @bot.callback_query_handler(func=lambda c: c.data.startswith(('adm_', 'ap_', 'rj_')))
   def cb_adm(call):
     global MIN_PLAYERS
@@ -785,7 +809,8 @@ if bot:
     d = call.data
     if d.startswith(('ap_', 'rj_')) and not is_finance_admin(call.from_user.id):
       return bot.answer_callback_query(call.id, '⏳ የገቢና ወጪ ማጽደቅ ተራው አሁን የሌላ አድሚን ነው።', show_alert=True)
-    bot.answer_callback_query(call.id)
+    if call.id:
+      bot.answer_callback_query(call.id)
     if d in ('adm_games_pause', 'adm_games_resume'):
       paused = set_games_paused(d == 'adm_games_pause')
       status = '⏸️ ሁሉም ጨዋታዎች ቆመዋል። የካርድና የገንዘብ መዝገቦች አልተሰረዙም።' if paused else '▶️ ጨዋታዎች እንደገና ቀጥለዋል።'
@@ -827,11 +852,12 @@ if bot:
     elif d in ('adm_minp_inc', 'adm_minp_dec'):
       change = 1 if d == 'adm_minp_inc' else -1
       updated = set_min_players(MIN_PLAYERS + change)
-      try:
-        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=adm_kb())
-      except Exception:
-        pass
-      bot.edit_message_text(f'⚙️ ዝቅተኛ ተጫዋች: {updated}\\n\\n➖ ቀንስ ወይም ➕ ጨምር በመጫን ቁጥሩን ቀጥታ ይቀይሩ።\\n🎮 በ10/20/50 ETB ክፍሎች ሁሉ ይሠራል።', call.message.chat.id, call.message.message_id, reply_markup=adm_kb())
+      if call.id and call.message.message_id:
+        try:
+          bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=IKB())
+        except Exception:
+          pass
+      bot.send_message(call.message.chat.id, f'⚙️ ዝቅተኛ ተጫዋች: {updated}\\n➖ ቀንስ ወይም ➕ ጨምር በታች ካሉት ቦቶኖች ይጫኑ።', reply_markup=adm_kb())
     elif d == 'adm_backup':
       bot.send_message(call.message.chat.id, '💾 Neon PostgreSQL ዳታቤዝ በRender local file አይደለም። Backup ከNeon Console ወይም pg_dump መውሰድ ያስፈልጋል።')
     elif d == 'adm_bcast':
