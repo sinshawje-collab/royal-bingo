@@ -558,7 +558,7 @@ ADMIN_REPLY_ACTIONS = {
 def adm_kb():
   # Telegram reply keyboard stays visible at the bottom of the admin chat.
   kb = RKB(resize_keyboard=True, row_width=2, is_persistent=True)
-  kb.row(KBtn('📱 ወደ Mini App ግባ', web_app=WebAppInfo(url=APP_URL)))
+  kb.row(KBtn('🎮 Play Royal Bingo', web_app=WebAppInfo(url=APP_URL)))
   kb.row(KBtn('⏸️ ጨዋታዎችን አቁም' if not GAME_PAUSED else '▶️ ጨዋታዎችን ጀምር / ቀጥል'))
   kb.row(KBtn('📊 የጨዋታ ሁኔታ'))
   kb.row(KBtn('📊 ሪፖርትና ትርፍ'), KBtn('👥 ተጫዋቾች'))
