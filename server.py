@@ -461,7 +461,7 @@ if bot:
   def c_myid(m): bot.reply_to(m, f'🆔 የአንተ Telegram ID፦ `{m.from_user.id}`', parse_mode='Markdown')
 
   @bot.message_handler(commands=['admin'])
-  @bot.message_handler(func=lambda m: m.text == '👑 Admin Panel')
+  @bot.message_handler(func=lambda m: bool(m.text) and ('Admin Panel' in m.text or m.text.strip() == '👑 Admin'))
   def c_admin(m):
     if not is_adm(m.from_user.id): return bot.reply_to(m, '⛔ ለአድሚን ብቻ!')
     bot.send_message(m.chat.id, '👑 ROYAL BINGO — የአድሚን መቆጣጠሪያ', reply_markup=adm_kb())
