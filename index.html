@@ -164,7 +164,7 @@ body.light .status-banner{color:#1d4ed8}
 html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#070316 75%);background-attachment:fixed}
 .app{max-width:480px;padding:0 0 82px}
 .hero-banner{
- height:auto;aspect-ratio:16/9;max-height:220px;position:relative;overflow:hidden;display:flex;flex-direction:column;
+ width:min(100%,300px);height:auto;aspect-ratio:16/9;max-height:none;position:relative;overflow:hidden;display:flex;flex-direction:column;margin-left:auto;margin-right:auto;
  align-items:center;justify-content:center;text-align:center;margin:0 0 8px;
  background:radial-gradient(ellipse at 50% 72%,rgba(255,171,20,.28),transparent 35%),
  radial-gradient(ellipse at 50% 45%,#4c168c 0%,#180735 53%,#08031b 100%);
@@ -204,7 +204,7 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
 .bnav{background:rgba(10,5,31,.98);border-top:1px solid #6d45b4;box-shadow:0 -5px 18px rgba(0,0,0,.3);padding:8px 4px calc(7px + env(safe-area-inset-bottom))}
 .nbtn{font-size:10px;color:#c4b5fd}.nbtn .ni{font-size:21px}.nbtn.on{color:#ffdc52;background:linear-gradient(135deg,rgba(245,158,11,.22),rgba(124,58,237,.18));border:1px solid rgba(245,158,11,.35)}
 .scard,.hitem,.rrow{background:linear-gradient(145deg,#171039,#0d0925);border-color:#59419a}
-@media(max-width:360px){.hero-banner{height:128px}.cgrid{gap:5px}.gnum{font-size:11px}.hdr{margin-left:8px;margin-right:8px}}
+@media(max-width:360px){.hero-banner{width:min(100%,280px)}.cgrid{gap:5px}.gnum{font-size:11px}.hdr{margin-left:8px;margin-right:8px}}
 
 
 /* Winner celebration */
