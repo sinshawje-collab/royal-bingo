@@ -320,6 +320,26 @@ def finance_admin_ids(now=None):
   elapsed_slots = max(0, int((int(now or time.time()) - int(row['start_at'])) // ADMIN_ROTATION_SECONDS))
   return [second_id if elapsed_slots % 2 == 0 else owner_id]
 
+def finance_rotation_status(now=None):
+  now = int(now or time.time())
+  owner_id = int(ADMIN_ID) if ADMIN_ID else None
+  second_id = bereket_admin_id()
+  with get_db() as db:
+    row = db.execute('SELECT start_at FROM admin_rotation WHERE id=1').fetchone()
+  if not row or not owner_id or not second_id:
+    return {'configured': False, 'active_name': 'Not configured', 'next_name': 'Not configured', 'remaining': 0}
+  elapsed = max(0, now - int(row['start_at']))
+  slot = elapsed // ADMIN_ROTATION_SECONDS
+  remaining = ADMIN_ROTATION_SECONDS - (elapsed % ADMIN_ROTATION_SECONDS)
+  second_active = slot % 2 == 0
+  return {
+    'configured': True,
+    'active_name': SECOND_ADMIN_NAME if second_active else 'SINSHAW JEMANEH ESHETE',
+    'next_name': 'SINSHAW JEMANEH ESHETE' if second_active else SECOND_ADMIN_NAME,
+    'remaining': int(remaining),
+    'active_id': second_id if second_active else owner_id
+  }
+
 def active_payment_accounts():
   """Return the payment destination for the finance admin currently on duty."""
   active_ids = finance_admin_ids()
@@ -376,6 +396,7 @@ def adm_kb():
   kb.row(IBtn('📊 ሪፖርትና ትርፍ', callback_data='adm_stats'), IBtn('👥 ተጫዋቾች', callback_data='adm_users'))
   kb.row(IBtn('➕ ብር ጨምር', callback_data='adm_add'), IBtn('➖ ብር ቀንስ', callback_data='adm_sub'))
   kb.row(IBtn(f'⚙️ ዝቅተኛ ተጫዋች: {MIN_PLAYERS}', callback_data='adm_minp'), IBtn('💾 DB Backup', callback_data='adm_backup'))
+  kb.row(IBtn('⏱️ የገቢ/ወጪ ተራ ሰዓት', callback_data='adm_timer'))
   kb.row(IBtn('📢 ለሁሉም መልዕክት ላክ', callback_data='adm_bcast'))
   return kb
 
@@ -548,7 +569,15 @@ if bot:
     if d.startswith(('ap_', 'rj_')) and not is_finance_admin(call.from_user.id):
       return bot.answer_callback_query(call.id, '⏳ የገቢና ወጪ ማጽደቅ ተራው አሁን የሌላ አድሚን ነው።', show_alert=True)
     bot.answer_callback_query(call.id)
-    if d == 'adm_stats':
+    if d == 'adm_timer':
+      t = finance_rotation_status()
+      if t['configured']:
+        hh, rem = divmod(t['remaining'], 3600)
+        mm, ss = divmod(rem, 60)
+        bot.send_message(call.message.chat.id, f'⏱️ የገቢና ወጪ ማጽደቅ ተራ\n\n🟢 አሁን ተረኛ: {t["active_name"]}\n🔜 ቀጣይ: {t["next_name"]}\n⏳ የሚቀረው: {hh:02d}:{mm:02d}:{ss:02d}')
+      else:
+        bot.send_message(call.message.chat.id, '⚠️ የ6 ሰዓት ተራ ስርዓቱ ገና አልተዋቀረም።')
+    elif d == 'adm_stats':
       with get_db() as c:
         uc = c.execute('SELECT COUNT(*) FROM users').fetchone()[0]
         pw = c.execute('SELECT COALESCE(SUM(play_wallet+win_wallet),0) FROM users').fetchone()[0]
