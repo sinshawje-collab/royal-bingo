@@ -766,7 +766,7 @@ if bot:
         bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=adm_kb())
       except Exception:
         pass
-      bot.send_message(call.message.chat.id, f'✅ ዝቅተኛ ተጫዋች ብዛት ወደ {updated} ተቀይሯል።\\n🎮 በ10/20/50 ETB ክፍሎች ሁሉ ይሠራል።\\n💾 ለውጡ በዳታቤዝ ተቀምጧል።', reply_markup=adm_kb())
+      bot.edit_message_text(f'⚙️ ዝቅተኛ ተጫዋች: {updated}\\n\\n➖ ቀንስ ወይም ➕ ጨምር በመጫን ቁጥሩን ቀጥታ ይቀይሩ።\\n🎮 በ10/20/50 ETB ክፍሎች ሁሉ ይሠራል።', call.message.chat.id, call.message.message_id, reply_markup=adm_kb())
     elif d == 'adm_backup':
       bot.send_message(call.message.chat.id, '💾 Neon PostgreSQL ዳታቤዝ በRender local file አይደለም። Backup ከNeon Console ወይም pg_dump መውሰድ ያስፈልጋል።')
     elif d == 'adm_bcast':
