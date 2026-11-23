@@ -275,6 +275,61 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
 .admin-side-section>#financeRotationBox{margin:0 0 10px!important}
 @media(max-width:360px){.admin-side-nav{gap:1px;padding-left:3px;padding-right:3px}.admin-side-btn{min-height:53px;padding:6px 1px;font-size:8px}.admin-side-btn .asi{font-size:19px}}
 
+
+/* Premium admin dashboard refinement — visual only */
+#adminDashboard{padding:5px 2px 18px}
+#adminDashboard .admin-hero{
+  position:relative;overflow:hidden;padding:21px 18px 16px;border-radius:22px;
+  background:radial-gradient(ellipse at 88% 5%,rgba(250,204,21,.22),transparent 34%),
+  radial-gradient(ellipse at 5% 100%,rgba(124,58,237,.22),transparent 42%),
+  linear-gradient(145deg,#080f20 0%,#17142d 52%,#24162e 100%);
+  border:1px solid rgba(250,204,21,.34);
+  box-shadow:0 16px 34px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.08)
+}
+#adminDashboard .admin-hero:after{content:"";position:absolute;width:150px;height:150px;right:-55px;bottom:-95px;border:1px solid rgba(250,204,21,.18);border-radius:50%;box-shadow:0 0 0 16px rgba(250,204,21,.035),0 0 0 34px rgba(250,204,21,.025);pointer-events:none}
+#adminDashboard .admin-kicker{font-size:9px;letter-spacing:2px;color:#fcd34d}
+#adminDashboard .admin-title{font-size:25px;letter-spacing:.25px;text-shadow:0 3px 18px rgba(250,204,21,.16)}
+#adminDashboard .admin-subtitle{font-size:11px;line-height:1.6;color:#d5d7e4}
+#adminDashboard .admin-seal{width:60px;height:60px;border-radius:18px;background:linear-gradient(145deg,rgba(250,204,21,.22),rgba(124,58,237,.16));box-shadow:0 7px 20px rgba(0,0,0,.22);font-size:20px}
+#adminDashboard .admin-live{margin-top:16px;padding-top:12px;font-size:9px;letter-spacing:1.2px}
+#adminDashboard .admin-control-card,#adminDashboard .admin-overview-card{
+  position:relative;padding:16px;border-radius:19px;margin-bottom:13px;
+  background:linear-gradient(145deg,rgba(25,34,55,.98),rgba(13,20,36,.98));
+  border:1px solid rgba(148,163,184,.16);
+  box-shadow:0 10px 24px rgba(0,0,0,.19),inset 0 1px 0 rgba(255,255,255,.035);
+  transition:border-color .2s,transform .2s
+}
+body.light #adminDashboard .admin-control-card,body.light #adminDashboard .admin-overview-card{background:linear-gradient(145deg,#fff,#f5f7fb);border-color:rgba(100,116,139,.2)}
+#adminDashboard .admin-section-head{align-items:center;margin-bottom:14px}
+#adminDashboard .admin-eyebrow{font-size:9px;letter-spacing:1.5px;color:#c4b5fd}
+#adminDashboard .admin-section-title{font-size:15px;line-height:1.4;letter-spacing:.05px}
+#adminDashboard .admin-control-desc{font-size:11.5px;line-height:1.75}
+#adminDashboard .admin-control-actions{gap:10px}
+#adminDashboard .admin-stop-btn,#adminDashboard .admin-start-btn{min-height:48px;border-radius:14px;font-size:12px;box-shadow:0 7px 16px rgba(0,0,0,.18);transition:filter .15s,transform .15s}
+#adminDashboard .admin-stop-btn:active,#adminDashboard .admin-start-btn:active,#adminDashboard .admin-room-tab:active{transform:scale(.98);filter:brightness(1.12)}
+#adminDashboard .admin-room-mini,#adminDashboard .admin-stat{border-radius:14px;padding:12px 8px;background:rgba(7,13,26,.42);border-color:rgba(148,163,184,.17)}
+body.light #adminDashboard .admin-room-mini,body.light #adminDashboard .admin-stat{background:#f8fafc}
+#adminDashboard .admin-room-mini strong{font-size:14px;color:#fcd34d}
+#adminDashboard .admin-room-mini span{font-size:10px;line-height:1.4}
+#adminDashboard .admin-room-tab{min-height:40px;border-radius:12px;font-size:11px;transition:all .16s}
+#adminDashboard .admin-room-tab.active{background:linear-gradient(135deg,rgba(245,158,11,.2),rgba(124,58,237,.16));box-shadow:inset 0 0 0 1px rgba(245,158,11,.12)}
+#adminDashboard .admin-stat{min-height:65px;display:flex;flex-direction:column;justify-content:center}
+#adminDashboard .admin-stat strong{font-size:15px;font-variant-numeric:tabular-nums}
+#adminDashboard .admin-ball-focus{border-radius:17px;padding:18px;background:radial-gradient(circle at 50% 0%,rgba(250,204,21,.16),transparent 68%),rgba(7,13,26,.55);border-color:rgba(250,204,21,.23)}
+#adminDashboard .admin-next-ball{font-size:40px;text-shadow:0 0 22px rgba(250,204,21,.2)}
+#adminDashboard .admin-ball{border-radius:11px;padding:9px 2px;background:rgba(7,13,26,.42);border-color:rgba(148,163,184,.16)}
+#adminDashboard .admin-ball.next{box-shadow:0 0 14px rgba(16,185,129,.12)}
+#adminDashboard #adminProfitPanel{border:1px solid rgba(16,185,129,.34)!important;background:radial-gradient(ellipse at 100% 0%,rgba(16,185,129,.14),transparent 38%),linear-gradient(145deg,#102b2a,#111126)!important}
+#adminDashboard #adminProfitPanel .admin-eyebrow{color:#6ee7b7}
+#adminDashboard #adminProfitPanel .admin-section-title{color:#ecfdf5}
+#adminDashboard .admin-safe-note{font-size:10px;line-height:1.65}
+@media(max-width:360px){
+ #adminDashboard .admin-hero{padding:17px 14px}
+ #adminDashboard .admin-title{font-size:21px}
+ #adminDashboard .admin-control-card,#adminDashboard .admin-overview-card{padding:13px}
+ #adminDashboard .admin-room-overview,#adminDashboard .admin-room-stats{gap:5px}
+}
+
 </style>
 </head>
 <body>
