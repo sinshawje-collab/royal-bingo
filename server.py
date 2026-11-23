@@ -448,13 +448,15 @@ if bot:
           return bot.reply_to(m, '❌ በቂ ባላንስ የለዎትም ወይም የገንዘብ መጠኑ ትክክል አይደለም!')
         rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at) VALUES (?,?,?,?,?,?,?)',
                         ('withdraw', m.from_user.id, amt, md, f'PENDING RESERVED | Acc: {acc}', 'pending', int(time.time()))).lastrowid
-      if bot and ADMIN_ID:
-        try:
-          kb = IKB()
-          kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
-          bot.send_message(ADMIN_ID, f'🔔 አዲስ የወጪ ጥያቄ!\n\n🆔 Request #{rid}\n👤 {u["name"]}\n🆔 Player ID: {m.from_user.id}\n💵 {amt:.2f} ETB\n🏦 የወጪ ዘዴ: {md}\n📱 የተቀባይ ቁጥር: {acc}', reply_markup=kb)
-        except Exception as notify_exc:
-          print(f'Withdrawal admin notification failed for request #{rid}: {type(notify_exc).__name__}: {notify_exc}')
+      aids = admin_ids()
+      if bot and aids:
+        kb = IKB()
+        kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
+        msg = f'🔔 አዲስ የወጪ ጥያቄ!\n\n🆔 Request #{rid}\n👤 {u["name"]}\n🆔 Player ID: {m.from_user.id}\n💵 {amt:.2f} ETB\n🏦 የወጪ ዘዴ: {md}\n📱 የተቀባይ ቁጥር: {acc}'
+        for aid in aids:
+          try: bot.send_message(aid, msg, reply_markup=kb)
+          except Exception as notify_exc:
+            print(f'Withdrawal admin notification failed for request #{rid}: {type(notify_exc).__name__}: {notify_exc}')
       bot.reply_to(m, f'✅ የ {amt:.2f} ETB የወጪ ጥያቄዎ ተመዝግቧል።', reply_markup=menu_kb(m.from_user.id))
     except sqlite3.Error:
       bot.reply_to(m, '❌ ጥያቄውን ማስመዝገብ አልተቻለም። እባክዎ እንደገና ይሞክሩ።')
