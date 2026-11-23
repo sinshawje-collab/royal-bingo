@@ -27,7 +27,7 @@ CBE_PHONE = os.environ.get('CBE_BIRR_PHONE', '0941882333')
 
 def payment_method_label(method):
   """Use the public-facing payment provider name consistently."""
-  return 'CBE Birr' if str(method or '').strip() in ('CBE', 'CBE Birr') else str(method or 'TeleBirr').strip()
+  return 'CbeBirr' if str(method or '').strip() in ('CBE', 'CBE Birr', 'CbeBirr') else str(method or 'TeleBirr').strip()
 DB_PATH = os.environ.get('DB_PATH', 'royal_bingo.db')
 DATABASE_URL = os.environ.get('DATABASE_URL', '').strip().strip("'\\\"")
 HOUSE_CUT, CD_SEC, CALL_SEC, WIN_SEC = 0.20, 40, 3.0, 10
@@ -647,7 +647,7 @@ if bot:
   @bot.message_handler(func=lambda m: m.text in ('💰 ገቢ (Deposit)', '💳 Deposit'))
   def c_dep(m):
     if finance_service_closed_for(m.from_user.id): return bot.send_message(m.chat.id, finance_closed_bot_message())
-    kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='dep_TeleBirr'), IBtn('🏦 CBE Birr', callback_data='dep_CBE'))
+    kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='dep_TeleBirr'), IBtn('🏦 CbeBirr', callback_data='dep_CBE'))
     bot.send_message(m.chat.id, '💳 የክፍያ አማራጭ ይምረጡ፦', reply_markup=kb)
 
   @bot.callback_query_handler(func=lambda c: c.data in ('dep_TeleBirr', 'dep_CBE'))
@@ -655,7 +655,7 @@ if bot:
     if finance_service_closed_for(call.from_user.id):
       return bot.answer_callback_query(call.id, finance_closed_bot_message(), show_alert=True)
     bot.answer_callback_query(call.id); md = call.data.split('_')[1]
-    bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💵 በ {"CBE Birr" if md == "CBE" else md} የሚያስገቡትን መጠን ይጻፉ (ዝቅተኛ 20 ETB)፦'), s_dep_amt, md)
+    bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💵 በ {"CbeBirr" if md == "CBE" else md} የሚያስገቡትን መጠን ይጻፉ (ዝቅተኛ 20 ETB)፦'), s_dep_amt, md)
 
   def s_dep_amt(m, md):
     if dispatch_menu_from_step(m): return
@@ -666,7 +666,7 @@ if bot:
         return bot.reply_to(m, '❌ 20 ETB እስከ 1,000,000 ETB ያለ ትክክለኛ መጠን ያስገቡ።')
     except Exception: return bot.reply_to(m, '❌ ትክክለኛ ቁጥር ያስገቡ።')
     pay = active_payment_accounts()
-    bot.register_next_step_handler(bot.send_message(m.chat.id, f"🏦 {'CBE Birr' if md == 'CBE' else md}\n👤 {pay['telebirr_name'] if md == 'TeleBirr' else pay['cbe_name']}\n📱 {pay['telebirr_phone'] if md == 'TeleBirr' else pay['cbe_phone']}\n💵 {amt:.2f} ETB\n\nከላኩ በኋላ የSMS Transaction ID ይላኩ 👇"), s_dep_tx, amt, md)
+    bot.register_next_step_handler(bot.send_message(m.chat.id, f"🏦 {'CbeBirr' if md == 'CBE' else md}\n👤 {pay['telebirr_name'] if md == 'TeleBirr' else pay['cbe_name']}\n📱 {pay['telebirr_phone'] if md == 'TeleBirr' else pay['cbe_phone']}\n💵 {amt:.2f} ETB\n\nከላኩ በኋላ የSMS Transaction ID ይላኩ 👇"), s_dep_tx, amt, md)
 
   def s_dep_tx(m, amt, md):
     if dispatch_menu_from_step(m): return
@@ -681,7 +681,7 @@ if bot:
   @bot.message_handler(func=lambda m: m.text in ('💸 ወጪ (Withdraw)', '💸 Withdraw'))
   def c_wd(m):
     if finance_service_closed_for(m.from_user.id): return bot.send_message(m.chat.id, finance_closed_bot_message())
-    kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='wd_TeleBirr'), IBtn('🏦 CBE Birr', callback_data='wd_CBE'))
+    kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='wd_TeleBirr'), IBtn('🏦 CbeBirr', callback_data='wd_CBE'))
     bot.send_message(m.chat.id, '💸 ወደ የትኛው አካውንት ማውጣት ይፈልጋሉ?', reply_markup=kb)
 
   @bot.callback_query_handler(func=lambda c: c.data in ('wd_TeleBirr', 'wd_CBE'))
@@ -1098,8 +1098,8 @@ async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
   except (TypeError, ValueError): raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
   tx = str(b.get('tx_id', '')).strip()
   method = str(b.get('method', 'TeleBirr')).strip()
-  if method not in ('TeleBirr', 'CBE Birr'):
-    raise HTTPException(400, 'TeleBirr ወይም CBE Birr ይምረጡ!')
+  if method not in ('TeleBirr', 'CBE Birr', 'CbeBirr'):
+    raise HTTPException(400, 'TeleBirr ወይም CbeBirr ይምረጡ!')
   if not math.isfinite(amt) or amt < 20 or amt > 1000000 or len(tx) < 4 or len(tx) > 120:
     raise HTTPException(400, 'ዝቅተኛ 20 ETB፣ ትክክለኛ Transaction ID እና ተገቢ መጠን ያስገቡ!')
   try: notify_req('deposit', u['uid'], amt, method, f'App TX: {tx}', reference=tx)
@@ -1197,8 +1197,8 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
   else:
     ph = ''
   method = str(b.get('method', 'TeleBirr')).strip()
-  if method not in ('TeleBirr', 'CBE Birr'):
-    raise HTTPException(400, 'TeleBirr ወይም CBE Birr ይምረጡ!')
+  if method not in ('TeleBirr', 'CBE Birr', 'CbeBirr'):
+    raise HTTPException(400, 'TeleBirr ወይም CbeBirr ይምረጡ!')
   if not math.isfinite(amt) or amt < 100 or amt > 1000000 or not ph:
     raise HTTPException(400, 'ዝቅተኛ 100 ETB እና ትክክለኛ 09XXXXXXXX ስልክ ቁጥር ያስገቡ!')
   with get_db() as c:
