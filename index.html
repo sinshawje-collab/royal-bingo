@@ -645,7 +645,7 @@ var cardGridClickBound = false;
 function renderState(d) {
   latestState = d;
   var u = d.user || {}, r = d.room || {}, cfg = d.config || {};
-  var financeClosed = !!(d.finance_service && d.finance_service.closed);
+  var financeClosed = !!(d.finance_service && d.finance_service.closed) && !d.is_admin;
   ['depDrw','wdDrw'].forEach(function(id) {
     var panel = document.getElementById(id);
     if (panel) panel.classList.toggle('finance-closed', financeClosed);
@@ -993,7 +993,7 @@ async function sendTransfer() {
 }
 
 async function sendDep() {
-  if (latestState && latestState.finance_service && latestState.finance_service.closed) return toast('⛔ የገቢና ወጪ አገልግሎት ከማታ 3:00 እስከ ጠዋት 2:00 ዝግ ነው።');
+  if (latestState && latestState.finance_service && latestState.finance_service.closed && !latestState.is_admin) return toast('⛔ የገቢና ወጪ አገልግሎት ከማታ 3:00 እስከ ጠዋት 2:00 ዝግ ነው።');
   var a = parseFloat(document.getElementById('depAmt').value);
   var tx = document.getElementById('depTx').value.trim();
   try {
