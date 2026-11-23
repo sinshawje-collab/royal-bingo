@@ -681,10 +681,8 @@ function renderState(d) {
   // updates the visible account name and phone even while the deposit panel is open.
   var payPhone = selectedDepositMethod === 'CBE Birr' ? (cfg.cbe_phone || '') : (cfg.telebirr_phone || '');
   var payName = selectedDepositMethod === 'CBE Birr' ? (cfg.cbe_name || '') : (cfg.telebirr_name || '');
-  var payPhoneEl = document.getElementById('agPhone');
-  var payNameEl = document.getElementById('agName');
-  if (payPhoneEl) payPhoneEl.textContent = payPhone;
-  if (payNameEl) payNameEl.textContent = payName;
+  document.querySelectorAll('[id="agPhone"]').forEach(function(el){ el.textContent = payPhone; });
+  document.querySelectorAll('[id="agName"]').forEach(function(el){ el.textContent = payName; });
   var balance = Number(u.balance != null ? u.balance : (u.play_wallet || 0) + (u.win_wallet || 0));
   document.getElementById('hBal').textContent = balance.toFixed(2);
   document.getElementById('lWal').textContent = balance.toFixed(2);
@@ -959,8 +957,10 @@ function selectDepositMethod(method) {
   document.getElementById('depCbeBtn').classList.toggle('on', method === 'CBE Birr');
   document.getElementById('agMethod').textContent = method;
   var cfg = (latestState && latestState.config) || {};
-  document.getElementById('agPhone').textContent = method === 'CBE Birr' ? (cfg.cbe_phone || '0941882333') : (cfg.telebirr_phone || '0941882333');
-  document.getElementById('agName').textContent = method === 'CBE Birr' ? (cfg.cbe_name || 'SINSHAW JEMANEH ESHETE') : (cfg.telebirr_name || 'SINSHAW JEMANEH ESHETE');
+  var payPhone = method === 'CBE Birr' ? (cfg.cbe_phone || '0941882333') : (cfg.telebirr_phone || '0941882333');
+  var payName = method === 'CBE Birr' ? (cfg.cbe_name || 'SINSHAW JEMANEH ESHETE') : (cfg.telebirr_name || 'SINSHAW JEMANEH ESHETE');
+  document.querySelectorAll('[id="agPhone"]').forEach(function(el){ el.textContent = payPhone; });
+  document.querySelectorAll('[id="agName"]').forEach(function(el){ el.textContent = payName; });
 }
 function toggleTransfer() {
   var panel = document.getElementById('transferPanel');
