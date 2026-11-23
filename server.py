@@ -1,5 +1,6 @@
 import base64, hashlib, hmac, io, json, math, os, random, secrets, threading, time, urllib.parse
-import psycopg as sqlite3
+import psycopg
+sqlite3 = psycopg
 from psycopg.rows import dict_row
 from contextlib import contextmanager
 from fastapi import FastAPI, Header, HTTPException, Request
