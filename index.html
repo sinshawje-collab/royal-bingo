@@ -203,6 +203,19 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
 .scard,.hitem,.rrow{background:linear-gradient(145deg,#171039,#0d0925);border-color:#59419a}
 @media(max-width:360px){.hero-banner{height:128px}.cgrid{gap:5px}.gnum{font-size:11px}.hdr{margin-left:8px;margin-right:8px}}
 
+
+/* Winner celebration */
+.win-confetti{position:fixed;inset:0;z-index:95;overflow:hidden;pointer-events:none;display:none}
+.win-confetti.on{display:block}
+.win-confetti i{position:absolute;top:-14px;left:var(--x);width:9px;height:15px;border-radius:2px;background:var(--c);opacity:.95;transform:rotate(var(--r));animation:winFall var(--d) linear forwards;animation-delay:var(--delay)}
+@keyframes winFall{0%{transform:translate3d(0,-5vh,0) rotate(0deg);opacity:1}100%{transform:translate3d(var(--drift),110vh,0) rotate(780deg);opacity:.1}}
+.wcard{position:relative;z-index:96;animation:winnerPop .55s cubic-bezier(.2,1.5,.4,1)}
+.wttl{animation:winnerGlow 1.1s ease-in-out infinite alternate;text-shadow:0 0 12px rgba(251,191,36,.8),0 0 26px rgba(168,85,247,.7)}
+.win-cheer{font-size:34px;letter-spacing:5px;margin:0 0 7px;animation:cheerBounce .7s ease-in-out infinite alternate}
+@keyframes winnerPop{0%{transform:scale(.55) rotate(-5deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+@keyframes winnerGlow{from{transform:scale(1);filter:brightness(1)}to{transform:scale(1.07);filter:brightness(1.35)}}
+@keyframes cheerBounce{from{transform:translateY(0)}to{transform:translateY(-7px)}}
+@media(prefers-reduced-motion:reduce){.win-confetti i,.wcard,.wttl,.win-cheer{animation:none!important}}
 </style>
 </head>
 <body>
@@ -381,7 +394,9 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
 </div>
 
 <div id="winOv" class="wov">
+  <div id="winConfetti" class="win-confetti" aria-hidden="true"></div>
   <div class="wcard">
+    <div class="win-cheer">🎉 🥳 🎊</div>
     <div class="wttl">🏆 BINGO! 🏆</div>
     <div id="wName" class="wnm">👑 Winner</div>
     <div id="wPrz" class="wprz">0 ETB</div>
@@ -453,6 +468,27 @@ function speakText(txt, freq) {
       window.speechSynthesis.speak(u);
     } catch (e) {}
   }
+}
+
+function launchWinCelebration() {
+  var layer = document.getElementById('winConfetti');
+  if (!layer) return;
+  layer.innerHTML = '';
+  var colors = ['#fbbf24','#a855f7','#34d399','#60a5fa','#f472b6','#ffffff'];
+  for (var i = 0; i < 64; i++) {
+    var piece = document.createElement('i');
+    piece.style.setProperty('--x', (Math.random() * 100) + 'vw');
+    piece.style.setProperty('--c', colors[i % colors.length]);
+    piece.style.setProperty('--r', (Math.random() * 360) + 'deg');
+    piece.style.setProperty('--d', (2.4 + Math.random() * 2.2) + 's');
+    piece.style.setProperty('--delay', (Math.random() * .65) + 's');
+    piece.style.setProperty('--drift', ((Math.random() - .5) * 180) + 'px');
+    layer.appendChild(piece);
+  }
+  layer.classList.remove('on');
+  void layer.offsetWidth;
+  layer.classList.add('on');
+  setTimeout(function() { layer.classList.remove('on'); layer.innerHTML = ''; }, 5500);
 }
 
 function playVoice(file, fallbackTxt, freq) {
@@ -639,6 +675,7 @@ function renderState(d) {
       var w = r.winner;
       if (lastWinnerCard !== w.card_no) {
         lastWinnerCard = w.card_no;
+        launchWinCelebration();
         playVoice('bingo', 'Bingo!', 880);
       }
       document.getElementById('wName').textContent = '👑 ' + w.name + ' #' + w.card_no;
