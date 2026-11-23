@@ -44,4 +44,4 @@ AFTER DEPLOYMENT
 - The app still limits each player to 4 cards per stake room/round.
 
 SAFETY
-Back up the persistent SQLite database before deployment. This patch does not intentionally change the database schema or reset wallets. The current game rooms are held in process memory; keep one worker and avoid restarting during a live round. Payment approval is still manual; this build does not independently verify TeleBirr/CBE transfers.
+Back up the persistent SQLite database before deployment. This patch does not intentionally change the database schema or reset wallets. The current game rooms are held in process memory; keep one worker and avoid restarting during a live round. Payment approval is still manual; this build does not independently verify TeleBirr/CBE Birr transfers.
