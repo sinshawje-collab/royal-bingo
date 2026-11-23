@@ -1111,12 +1111,21 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
   u, b = auth_user(x_tg_init_data), await req.json()
   try: amt = float(b.get('amount', 0))
   except (TypeError, ValueError): raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
-  ph = str(b.get('phone', '')).strip()
+  raw_phone = str(b.get('phone', '')).strip()
+  # Accept Ethiopian mobile numbers in local (09XXXXXXXX) or international
+  # (+2519XXXXXXXX / 2519XXXXXXXX) format; store a consistent local number.
+  phone_digits = re.sub(r'\\D', '', raw_phone)
+  if phone_digits.startswith('251') and len(phone_digits) == 12:
+    ph = '0' + phone_digits[3:]
+  elif len(phone_digits) == 10 and phone_digits.startswith('09'):
+    ph = phone_digits
+  else:
+    ph = ''
   method = str(b.get('method', 'TeleBirr')).strip()
   if method not in ('TeleBirr', 'CBE Birr'):
     raise HTTPException(400, 'TeleBirr ወይም CBE Birr ይምረጡ!')
-  if not math.isfinite(amt) or amt < 100 or amt > 1000000 or len(ph) < 9 or len(ph) > 32:
-    raise HTTPException(400, 'ዝቅተኛ 100 ETB እና ትክክለኛ ሂሳብ/ስልክ ያስገቡ!')
+  if not math.isfinite(amt) or amt < 100 or amt > 1000000 or not ph:
+    raise HTTPException(400, 'ዝቅተኛ 100 ETB እና ትክክለኛ 09XXXXXXXX ስልክ ቁጥር ያስገቡ!')
   with get_db() as c:
     c.execute('BEGIN IMMEDIATE')
     if available_wallet(c, u['uid']) < amt: raise HTTPException(400, 'በቂ ያልሆነ ባላንስ አለዎት!')
