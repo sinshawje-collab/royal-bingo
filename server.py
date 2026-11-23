@@ -369,6 +369,21 @@ def active_payment_accounts():
     'cbe_name': name, 'cbe_phone': phone
   }
 
+def switch_finance_turn():
+  """Immediately hand finance duty to the other verified admin and restart the six-hour timer."""
+  now = int(time.time())
+  status = finance_rotation_status(now)
+  second_id = bereket_admin_id()
+  owner_id = int(ADMIN_ID) if ADMIN_ID else None
+  if not status.get('configured') or not second_id or not owner_id:
+    raise ValueError('ሁለቱም አድሚኖች መረጋገጥ አለባቸው።')
+  currently_second = int(status.get('active_id') or 0) == int(second_id)
+  # Slot 0 belongs to Bereket; slot 1 belongs to the primary owner.
+  new_start = now - (ADMIN_ROTATION_SECONDS if currently_second else 0)
+  with get_db() as c:
+    c.execute('UPDATE admin_rotation SET start_at=? WHERE id=1', (new_start,))
+  return finance_rotation_status(now)
+
 def is_finance_admin(uid):
   try:
     return int(uid) in finance_admin_ids()
@@ -405,6 +420,7 @@ def adm_kb():
   kb.row(IBtn('➕ ብር ጨምር', callback_data='adm_add'), IBtn('➖ ብር ቀንስ', callback_data='adm_sub'))
   kb.row(IBtn(f'⚙️ ዝቅተኛ ተጫዋች: {MIN_PLAYERS}', callback_data='adm_minp'), IBtn('💾 DB Backup', callback_data='adm_backup'))
   kb.row(IBtn('⏱️ የገቢ/ወጪ ተራ ሰዓት', callback_data='adm_timer'))
+  kb.row(IBtn('🔄 የገቢ/ወጪ ተራ ቀይር', callback_data='adm_switch_finance'))
   kb.row(IBtn('📢 ለሁሉም መልዕክት ላክ', callback_data='adm_bcast'))
   return kb
 
@@ -577,7 +593,13 @@ if bot:
     if d.startswith(('ap_', 'rj_')) and not is_finance_admin(call.from_user.id):
       return bot.answer_callback_query(call.id, '⏳ የገቢና ወጪ ማጽደቅ ተራው አሁን የሌላ አድሚን ነው።', show_alert=True)
     bot.answer_callback_query(call.id)
-    if d == 'adm_timer':
+    if d == 'adm_switch_finance':
+      try:
+        t = switch_finance_turn()
+        bot.send_message(call.message.chat.id, f'✅ የገቢና ወጪ ተራ ተቀይሯል።\\n🟢 አሁን ተረኛ: {t["active_name"]}\\n🔜 ቀጣይ: {t["next_name"]}\\n⏳ አዲሱ 6 ሰዓት ቆጠራ ተጀምሯል።', reply_markup=adm_kb())
+      except ValueError as exc:
+        bot.send_message(call.message.chat.id, f'❌ {exc}')
+    elif d == 'adm_timer':
       t = finance_rotation_status()
       if t['configured']:
         hh, rem = divmod(t['remaining'], 3600)
@@ -923,6 +945,16 @@ async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
   except sqlite3.IntegrityError: raise HTTPException(409, 'ይህ Transaction ID ቀድሞ ተጠቅሟል!')
   return {'ok': True}
 
+
+@app.post('/api/admin/finance/switch')
+async def api_admin_finance_switch(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  try:
+    return {'ok': True, 'finance_rotation': switch_finance_turn()}
+  except ValueError as exc:
+    raise HTTPException(409, str(exc))
 
 @app.post('/api/admin/broadcast')
 async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default='')):
