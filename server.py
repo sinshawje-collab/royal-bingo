@@ -1114,7 +1114,7 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
   raw_phone = str(b.get('phone', '')).strip()
   # Accept Ethiopian mobile numbers in local (09XXXXXXXX) or international
   # (+2519XXXXXXXX / 2519XXXXXXXX) format; store a consistent local number.
-  phone_digits = re.sub(r'\\D', '', raw_phone)
+  phone_digits = ''.join(ch for ch in raw_phone if ch.isdigit())
   if phone_digits.startswith('251') and len(phone_digits) == 12:
     ph = '0' + phone_digits[3:]
   elif len(phone_digits) == 10 and phone_digits.startswith('09'):
