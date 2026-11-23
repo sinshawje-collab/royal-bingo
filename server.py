@@ -517,10 +517,8 @@ def is_adm(uid):
 def menu_kb(uid=None):
   # Admin accounts must never see player-facing reply-keyboard actions.
   if uid and is_adm(uid):
-    # Admins get one dedicated persistent Mini App launcher, never player actions.
-    kb = RKB(resize_keyboard=True, one_time_keyboard=False)
-    kb.add(KBtn('📱 ወደ Mini App ግባ', web_app=WebAppInfo(url=APP_URL)))
-    return kb
+    # Admin actions, including Mini App launch, are shown only as inline buttons in adm_kb().
+    return RKR()
   # Keep Telegram menu actions as normal text buttons so player workflows run.
   kb = RKB(resize_keyboard=True, row_width=2)
   kb.row(KBtn('📝 Register'), KBtn('🎮 Play'))
