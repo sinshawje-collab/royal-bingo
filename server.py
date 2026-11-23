@@ -410,16 +410,15 @@ def is_adm(uid):
     return False
 
 def menu_kb(uid=None):
-  # Navigation buttons open the matching Mini App section directly.
-  # Registration and bot-only tools remain native Telegram actions.
+  # Keep Telegram menu actions as normal text buttons so bot workflows run.
   kb = RKB(resize_keyboard=True, row_width=2)
-  kb.row(KBtn('📝 Register'), KBtn('🎮 Play', web_app=WebAppInfo(url=APP_URL + '?section=bingo')))
-  kb.row(KBtn('💳 Deposit', web_app=WebAppInfo(url=APP_URL + '?section=wallet&action=deposit')), KBtn('📢 Join Channel'))
-  kb.row(KBtn('💸 Withdraw', web_app=WebAppInfo(url=APP_URL + '?section=wallet&action=withdraw')), KBtn('🔄 Transfer', web_app=WebAppInfo(url=APP_URL + '?section=wallet&action=transfer')))
+  kb.row(KBtn('📝 Register'), KBtn('🎮 Play'))
+  kb.row(KBtn('💳 Deposit'), KBtn('📢 Join Channel'))
+  kb.row(KBtn('💸 Withdraw'), KBtn('🔄 Transfer'))
   if uid and is_adm(uid):
-    kb.row(KBtn('👑 Admin Panel'), KBtn('💳 Balance', web_app=WebAppInfo(url=APP_URL + '?section=wallet')))
+    kb.row(KBtn('👑 Admin Panel'), KBtn('💳 Balance'))
   else:
-    kb.row(KBtn('💳 Balance', web_app=WebAppInfo(url=APP_URL + '?section=wallet')))
+    kb.row(KBtn('💳 Balance'))
   kb.row(KBtn('👥 Invite'), KBtn('🎧 Support'))
   kb.row(KBtn('📜 Rules'))
   return kb
@@ -537,20 +536,41 @@ if bot:
       try: bot.send_message(int(ADMIN_ID), '🔔 Bereket የ6 ሰዓት የገቢና ወጪ ተራውን ጀምሯል።')
       except Exception: pass
 
+  def dispatch_menu_from_step(m):
+    # A menu tap must cancel the currently pending text prompt and run its own action.
+    t = (m.text or '').strip()
+    routes = {
+      '🎮 Play': c_play, '🎮 Play Royal Bingo': c_play,
+      '💳 Deposit': c_dep, '💰 ገቢ (Deposit)': c_dep,
+      '💸 Withdraw': c_wd, '💸 ወጪ (Withdraw)': c_wd,
+      '🔄 Transfer': c_transfer,
+      '💳 Balance': c_bal, '💳 ባላንስ (Balance)': c_bal,
+      '👑 Admin Panel': c_admin, 'Admin': c_admin,
+      '📢 Join Channel': c_channel,
+      '🎧 Support': c_sup, '🎧 ድጋፍ (Support)': c_sup,
+      '📜 Rules': c_rules, '📜 ህግና መመሪያ': c_rules,
+    }
+    handler = routes.get(t)
+    if handler:
+      handler(m)
+      return True
+    return False
+
   @bot.message_handler(commands=['play'])
   @bot.message_handler(func=lambda m: m.text in ('🎮 Play Royal Bingo', '🎮 Play'))
-  def c_play(m): bot.send_message(m.chat.id, '🎮 ጨዋታውን ለመክፈት ከታች ይጫኑ።', reply_markup=section_kb('bingo', label='🎮 Play Royal Bingo'))
+  def c_play(m): bot.send_message(m.chat.id, '🎮 ጨዋታውን ለመክፈት ከታች ይጫኑ።', reply_markup=play_kb('🎮 Play Royal Bingo'))
 
   @bot.message_handler(commands=['balance'])
   @bot.message_handler(func=lambda m: m.text in ('💳 ባላንስ (Balance)', '💳 Balance'))
   def c_bal(m):
     u = ensure_user(m.from_user.id, m.from_user.first_name or 'Player')
-    bot.send_message(m.chat.id, f'💰 ጠቅላላ ባላንስ: {u["play_wallet"]+u["win_wallet"]:.2f} ETB\\n👛 የWallet ዝርዝርን ለማየት ከታች ይጫኑ።', reply_markup=section_kb('wallet', label='💳 Open Wallet'))
+    bot.send_message(m.chat.id, f'💰 ጠቅላላ ባላንስ: {u["play_wallet"]+u["win_wallet"]:.2f} ETB', reply_markup=play_kb('🎮 Play'))
 
   @bot.message_handler(commands=['deposit'])
   @bot.message_handler(func=lambda m: m.text in ('💰 ገቢ (Deposit)', '💳 Deposit'))
   def c_dep(m):
-    bot.send_message(m.chat.id, '💳 የገቢ ገጹን ለመክፈት ከታች ይጫኑ።', reply_markup=section_kb('wallet', 'deposit', '💳 Deposit Now'))
+    kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='dep_TeleBirr'), IBtn('🏦 CBE Birr', callback_data='dep_CBE'))
+    bot.send_message(m.chat.id, '💳 የክፍያ አማራጭ ይምረጡ፦', reply_markup=kb)
 
   @bot.callback_query_handler(func=lambda c: c.data in ('dep_TeleBirr', 'dep_CBE'))
   def cb_dep(call):
@@ -558,6 +578,7 @@ if bot:
     bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💵 በ {md} የሚያስገቡትን መጠን ይጻፉ (ዝቅተኛ 20 ETB)፦'), s_dep_amt, md)
 
   def s_dep_amt(m, md):
+    if dispatch_menu_from_step(m): return
     try:
       amt = float((m.text or '').strip())
       if not math.isfinite(amt) or amt < 20 or amt > 1000000:
@@ -567,6 +588,7 @@ if bot:
     bot.register_next_step_handler(bot.send_message(m.chat.id, f"🏦 {md}\n👤 {pay['telebirr_name'] if md == 'TeleBirr' else pay['cbe_name']}\n📱 {pay['telebirr_phone'] if md == 'TeleBirr' else pay['cbe_phone']}\n💵 {amt:.2f} ETB\n\nከላኩ በኋላ የSMS Transaction ID ይላኩ 👇"), s_dep_tx, amt, md)
 
   def s_dep_tx(m, amt, md):
+    if dispatch_menu_from_step(m): return
     tx = (m.text or '').strip()
     if len(tx) < 4 or len(tx) > 120: return bot.reply_to(m, '❌ ትክክለኛ Transaction ID ያስገቡ።')
     try: notify_req('deposit', m.from_user.id, amt, md, f'TX: {tx}', reference=tx)
@@ -576,7 +598,8 @@ if bot:
   @bot.message_handler(commands=['withdraw'])
   @bot.message_handler(func=lambda m: m.text in ('💸 ወጪ (Withdraw)', '💸 Withdraw'))
   def c_wd(m):
-    bot.send_message(m.chat.id, '💸 የወጪ ገጹን ለመክፈት ከታች ይጫኑ።', reply_markup=section_kb('wallet', 'withdraw', '💸 Withdraw Now'))
+    kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='wd_TeleBirr'), IBtn('🏦 CBE Birr', callback_data='wd_CBE'))
+    bot.send_message(m.chat.id, '💸 ወደ የትኛው አካውንት ማውጣት ይፈልጋሉ?', reply_markup=kb)
 
   @bot.callback_query_handler(func=lambda c: c.data in ('wd_TeleBirr', 'wd_CBE'))
   def cb_wd(call):
@@ -584,6 +607,7 @@ if bot:
     bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💸 በ {md} የሚወጣውን መጠን ይጻፉ (ዝቅተኛ 100 ETB)፦'), s_wd_amt, md)
 
   def s_wd_amt(m, md):
+    if dispatch_menu_from_step(m): return
     u = ensure_user(m.from_user.id)
     try: amt = float((m.text or '').strip())
     except Exception: return bot.reply_to(m, '❌ ትክክለኛ ቁጥር ያስገቡ።')
@@ -596,6 +620,7 @@ if bot:
     bot.register_next_step_handler(bot.reply_to(m, f'📱 የ {md} ስልክ/አካውንት ቁጥርዎን ያስገቡ፦'), s_wd_acc, amt, md)
 
   def s_wd_acc(m, amt, md):
+    if dispatch_menu_from_step(m): return
     acc = (m.text or '').strip()
     if len(acc) < 6 or len(acc) > 64:
       return bot.reply_to(m, '❌ ትክክለኛ የስልክ/አካውንት ቁጥር ያስገቡ።')
@@ -703,6 +728,7 @@ if bot:
           except Exception: pass
 
   def s_adm_bal(m, act):
+    if dispatch_menu_from_step(m): return
     if not is_adm(m.from_user.id): return
     try:
       u_s, a_s = (m.text or '').strip().split()
@@ -721,6 +747,7 @@ if bot:
     except Exception: bot.reply_to(m, '❌ ምሳሌ፦ `+2519XXXXXXXX 100`', parse_mode='Markdown')
 
   def s_bcast(m):
+    if dispatch_menu_from_step(m): return
     if not is_adm(m.from_user.id): return
     with get_db() as c: uids = [r[0] for r in c.execute('SELECT uid FROM users').fetchall()]
     keyboard = IKB()
@@ -763,9 +790,10 @@ if bot:
 
   @bot.message_handler(func=lambda m: m.text == '🔄 Transfer')
   def c_transfer(m):
-    bot.send_message(m.chat.id, '🔄 የገንዘብ ማስተላለፊያ ገጹን ለመክፈት ከታች ይጫኑ።', reply_markup=section_kb('wallet', 'transfer', '🔄 Transfer Now'))
+    bot.register_next_step_handler(bot.send_message(m.chat.id, '🔄 ወደ ሚልኩለት ተጫዋች የተመዘገበ ስልክ ቁጥር (09...) ያስገቡ፦'), s_transfer_phone)
 
   def s_transfer_phone(m):
+    if dispatch_menu_from_step(m): return
     phone = normalize_phone((m.text or '').strip())
     if not phone or len(re.sub(r'\\D', '', phone)) != 12:
       return bot.register_next_step_handler(bot.reply_to(m, '❌ ትክክለኛ የስልክ ቁጥር (09...) ያስገቡ።'), s_transfer_phone)
@@ -778,6 +806,7 @@ if bot:
     bot.register_next_step_handler(bot.send_message(m.chat.id, f'👤 ተቀባይ: {matches[0]["name"]}\\n📱 {phone}\\n\\n💵 የሚልኩትን መጠን ETB ያስገቡ (ዝቅተኛ 1 ETB)፦'), s_transfer_amount, phone, matches[0]['name'])
 
   def s_transfer_amount(m, phone, recipient_name):
+    if dispatch_menu_from_step(m): return
     try:
       amt = round(float((m.text or '').strip()), 2)
       if not math.isfinite(amt) or amt < 1 or amt > 100000: raise ValueError()
@@ -790,6 +819,7 @@ if bot:
     bot.register_next_step_handler(bot.send_message(m.chat.id, f'⚠️ እባክዎ ያረጋግጡ\\n👤 ተቀባይ: {recipient_name}\\n📱 {phone}\\n💵 መጠን: {amt:.2f} ETB\\n\\nለመላክ YES ይጻፉ፤ ለመሰረዝ NO ይጻፉ።'), s_transfer_confirm, phone, amt, recipient_name)
 
   def s_transfer_confirm(m, phone, amt, recipient_name):
+    if dispatch_menu_from_step(m): return
     if (m.text or '').strip().upper() != 'YES':
       return bot.reply_to(m, 'ℹ️ ማስተላለፉ ተሰርዟል።', reply_markup=menu_kb(m.from_user.id))
     try:
