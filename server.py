@@ -326,18 +326,19 @@ def finance_rotation_status(now=None):
   second_id = bereket_admin_id()
   with get_db() as db:
     row = db.execute('SELECT start_at FROM admin_rotation WHERE id=1').fetchone()
-  if not row or not owner_id or not second_id:
-    return {'configured': False, 'active_name': 'Not configured', 'next_name': 'Not configured', 'remaining': 0}
+  if not row or not owner_id:
+    return {'configured': False, 'verified': False, 'active_name': 'Not configured', 'next_name': 'Not configured', 'remaining': 0}
   elapsed = max(0, now - int(row['start_at']))
   slot = elapsed // ADMIN_ROTATION_SECONDS
   remaining = ADMIN_ROTATION_SECONDS - (elapsed % ADMIN_ROTATION_SECONDS)
   second_active = slot % 2 == 0
   return {
     'configured': True,
+    'verified': bool(second_id),
     'active_name': SECOND_ADMIN_NAME if second_active else 'SINSHAW JEMANEH ESHETE',
     'next_name': 'SINSHAW JEMANEH ESHETE' if second_active else SECOND_ADMIN_NAME,
     'remaining': int(remaining),
-    'active_id': second_id if second_active else owner_id
+    'active_id': (second_id if second_active else owner_id) if second_id else None
   }
 
 def active_payment_accounts():
