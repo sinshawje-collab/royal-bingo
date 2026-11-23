@@ -506,7 +506,13 @@ if bot:
       saved_name = SECOND_ADMIN_NAME if verified_second_admin else telegram_name
       ensure_user(m.from_user.id, saved_name)
       c.execute('UPDATE users SET name=?, phone=? WHERE uid=?', (saved_name, normalize_phone(phone), m.from_user.id))
+      # Start the automatic six-hour cycle at the moment Bereket verifies his own Telegram contact.
+      # Slot zero is Bereket; after six hours the duty moves to the primary owner.
+      if verified_second_admin:
+        c.execute('UPDATE admin_rotation SET start_at=? WHERE id=1', (int(time.time()),))
     bot.send_message(m.chat.id, f'✅ ተመዝግበዋል! ({m.contact.phone_number})', reply_markup=menu_kb(m.from_user.id))
+    if verified_second_admin:
+      bot.send_message(m.chat.id, '✅ የአድሚን ማረጋገጫ ተሳክቷል። የገቢ/ወጪ 6 ሰዓት ተራዎ አሁን ተጀምሯል። ከ6 ሰዓት በኋላ ወደ Sinshaw ይቀየራል።')
     bot.send_message(m.chat.id, '🎰 ጨዋታውን ለመክፈት ከታች ይጫኑ 👇', reply_markup=play_kb('🎮 Play Now'))
 
   @bot.message_handler(commands=['takeover'])
