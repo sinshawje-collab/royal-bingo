@@ -665,7 +665,7 @@ if bot:
 
   def s_dep_tx(m, amt, md):
     if dispatch_menu_from_step(m): return
-    if finance_service_status()['closed']: return bot.reply_to(m, finance_closed_bot_message())
+    if finance_service_closed_for(m.from_user.id): return bot.reply_to(m, finance_closed_bot_message())
     tx = (m.text or '').strip()
     if len(tx) < 4 or len(tx) > 120: return bot.reply_to(m, '❌ ትክክለኛ Transaction ID ያስገቡ።')
     try: notify_req('deposit', m.from_user.id, amt, md, f'TX: {tx}', reference=tx)
@@ -675,20 +675,20 @@ if bot:
   @bot.message_handler(commands=['withdraw'])
   @bot.message_handler(func=lambda m: m.text in ('💸 ወጪ (Withdraw)', '💸 Withdraw'))
   def c_wd(m):
-    if finance_service_status()['closed']: return bot.send_message(m.chat.id, finance_closed_bot_message())
+    if finance_service_closed_for(m.from_user.id): return bot.send_message(m.chat.id, finance_closed_bot_message())
     kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='wd_TeleBirr'), IBtn('🏦 CBE Birr', callback_data='wd_CBE'))
     bot.send_message(m.chat.id, '💸 ወደ የትኛው አካውንት ማውጣት ይፈልጋሉ?', reply_markup=kb)
 
   @bot.callback_query_handler(func=lambda c: c.data in ('wd_TeleBirr', 'wd_CBE'))
   def cb_wd(call):
-    if finance_service_status()['closed']:
+    if finance_service_closed_for(call.from_user.id):
       return bot.answer_callback_query(call.id, finance_closed_bot_message(), show_alert=True)
     bot.answer_callback_query(call.id); md = call.data.split('_')[1]
     bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💸 በ {md} የሚወጣውን መጠን ይጻፉ (ዝቅተኛ 100 ETB)፦'), s_wd_amt, md)
 
   def s_wd_amt(m, md):
     if dispatch_menu_from_step(m): return
-    if finance_service_status()['closed']: return bot.reply_to(m, finance_closed_bot_message())
+    if finance_service_closed_for(m.from_user.id): return bot.reply_to(m, finance_closed_bot_message())
     u = ensure_user(m.from_user.id)
     try: amt = float((m.text or '').strip())
     except Exception: return bot.reply_to(m, '❌ ትክክለኛ ቁጥር ያስገቡ።')
@@ -702,7 +702,7 @@ if bot:
 
   def s_wd_acc(m, amt, md):
     if dispatch_menu_from_step(m): return
-    if finance_service_status()['closed']: return bot.reply_to(m, finance_closed_bot_message())
+    if finance_service_closed_for(m.from_user.id): return bot.reply_to(m, finance_closed_bot_message())
     acc = (m.text or '').strip()
     if len(acc) < 6 or len(acc) > 64:
       return bot.reply_to(m, '❌ ትክክለኛ የስልክ/አካውንት ቁጥር ያስገቡ።')
