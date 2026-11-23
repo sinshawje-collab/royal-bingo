@@ -237,6 +237,23 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
 .picker-auto{padding:8px 12px;border-radius:11px;border:1px solid #7752b8;background:#211344;color:#ffe16a;font-size:11px;font-weight:800;cursor:pointer}
 @media(max-width:380px){.tier-card{padding-left:10px;padding-right:92px}.tier-coin{width:46px;height:46px;flex-basis:46px}.tier-info strong{font-size:19px}.tier-join{right:9px;min-width:76px;padding:12px 8px}}
 
+
+/* Full-screen card selection view, matching the reference flow */
+#cardPicker{min-height:calc(100dvh - 150px);padding-bottom:18px}
+.picker-room-head{position:sticky;top:0;z-index:8;display:flex;align-items:center;gap:10px;padding:9px 4px 12px;background:linear-gradient(180deg,#0c071d 85%,rgba(12,7,29,.92));}
+.picker-back{border:1px solid #7951b5;background:#21133d;color:#f5d66f;border-radius:10px;padding:9px 12px;font-weight:900}
+.picker-room-head>div{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.picker-room-head strong{font-size:15px;color:#ffda62}
+.picker-room-head small{font-size:10px;color:var(--mut)}
+.picker-wallet{font-size:11px;color:#50d6e9;white-space:nowrap}
+.picker-wallet b{font-size:14px;color:#fff}
+#cardPicker .picker-tools{display:flex;justify-content:flex-end;margin:4px 0 10px}
+#cardPicker .lctrl{margin:8px 0}
+#cardPicker .gwrap{max-height:calc(100dvh - 270px);min-height:calc(100dvh - 300px);overflow-y:auto;overscroll-behavior:contain}
+#cardPicker .cgrid{grid-template-columns:repeat(10,minmax(0,1fr));gap:4px}
+#cardPicker .gnum{aspect-ratio:1/.88;border-radius:6px;font-size:clamp(9px,2.7vw,12px);padding:2px 0}
+@media(max-width:380px){#cardPicker .cgrid{gap:3px}#cardPicker .gnum{font-size:9px}}
+
 </style>
 </head>
 <body>
@@ -265,6 +282,7 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
 
   <section id="tab-bingo" class="tab on">
     <div id="lobbyView">
+      <div id="lobbyHomeView">
       <div class="srow4">
         <div class="sbox"><div class="slbl">WALLET</div><div id="lWal" class="sval c-em">0.00</div></div>
         <div class="sbox"><div class="slbl">DERASH</div><div id="lDer" class="sval c-gold">0</div></div>
@@ -292,7 +310,8 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
         </div>
       </div>
       <div id="cardPicker" style="display:none">
-        <div class="picker-tools"><button class="picker-auto" onclick="backToTiers()">← ወደ ጨዋታ ምርጫ</button><span id="autoBtn" class="picker-auto" onclick="toggleAuto()">⚡ Auto-Mark: ON</span></div>
+        <div class="picker-room-head"><button class="picker-back" onclick="backToTiers()">‹ BACK</button><div><strong id="pickerStake">10 ETB GAME</strong><small id="pickerRoomStatus">Choose your bingo cards</small></div><span class="picker-wallet">ETB <b id="pickerBalance">0.00</b></span></div>
+        <div class="picker-tools"><span id="autoBtn" class="picker-auto" onclick="toggleAuto()">⚡ Auto-Mark: ON</span></div>
 
       <div class="lctrl">
         <div id="selLbl" class="scnt">ካርዶችዎ፡ 0 / 4</div>
@@ -926,17 +945,18 @@ async function sendWd() {
 function joinTier(s) {
   stake = s;
   document.querySelectorAll('.tier-card').forEach(function(el) { el.classList.toggle('active', el.id === 'tier' + s); });
+  document.getElementById('pickerStake').textContent = s + ' ETB GAME';
+  document.getElementById('pickerRoomStatus').textContent = 'Choose your bingo cards';
+  document.getElementById('pickerBalance').textContent = document.getElementById('hBal').textContent || '0.00';
+  document.getElementById('lobbyHomeView').style.display = 'none';
   document.getElementById('cardPicker').style.display = 'block';
+  window.scrollTo(0, 0);
   pollState();
-  setTimeout(function() {
-    var picker = document.getElementById('cardPicker');
-    if (picker) picker.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 180);
 }
 function backToTiers() {
   document.getElementById('cardPicker').style.display = 'none';
-  var tiers = document.querySelector('.tier-head');
-  if (tiers) tiers.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('lobbyHomeView').style.display = 'block';
+  window.scrollTo(0, 0);
 }
 function setStake(s) {
   stake = s;
