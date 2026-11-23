@@ -544,6 +544,7 @@ def section_kb(section, action=None, label='📲 Open Royal Bingo'):
 
 def adm_kb():
   kb = IKB()
+  kb.row(IBtn('📱 ወደ Mini App ግባ', web_app=WebAppInfo(url=APP_URL)))
   kb.row(IBtn('⏸️ ጨዋታዎችን አቁም' if not GAME_PAUSED else '▶️ ጨዋታዎችን ጀምር / ቀጥል', callback_data='adm_games_pause' if not GAME_PAUSED else 'adm_games_resume'))
   kb.row(IBtn('📊 የጨዋታ ሁኔታ', callback_data='adm_games_status'))
   kb.row(IBtn('📊 ሪፖርትና ትርፍ', callback_data='adm_stats'), IBtn('👥 ተጫዋቾች', callback_data='adm_users'))
