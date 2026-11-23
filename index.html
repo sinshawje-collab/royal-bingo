@@ -884,8 +884,11 @@ function selectDepositMethod(method) {
 function toggleTransfer() {
   var panel = document.getElementById('transferPanel');
   if (!panel) return;
-  panel.classList.toggle('on');
-  if (panel.classList.contains('on')) document.getElementById('transferPhone').focus();
+  var opening = !panel.classList.contains('on');
+  document.getElementById('depDrw').classList.remove('on');
+  document.getElementById('wdDrw').classList.remove('on');
+  panel.classList.toggle('on', opening);
+  if (opening) document.getElementById('transferPhone').focus();
 }
 
 async function sendTransfer() {
@@ -1053,8 +1056,13 @@ function goTab(t) {
 }
 function openDrw(w) {
   var d = document.getElementById('depDrw'), wd = document.getElementById('wdDrw');
-  if (w === 'dep') { d.classList.toggle('on'); wd.classList.remove('on'); }
-  else { wd.classList.toggle('on'); d.classList.remove('on'); }
+  var transfer = document.getElementById('transferPanel');
+  var target = w === 'dep' ? d : wd;
+  var opening = !target.classList.contains('on');
+  d.classList.remove('on');
+  wd.classList.remove('on');
+  if (transfer) transfer.classList.remove('on');
+  target.classList.toggle('on', opening);
 }
 function setThm(t) {
   document.body.classList.toggle('light', t === 'light');
