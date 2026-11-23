@@ -554,6 +554,10 @@ if bot:
 
 def run_bot():
   if not bot: return print('WARNING: BOT_TOKEN not set; bot polling skipped.')
+  # Render briefly runs old and new instances during deploys. Wait for the old
+  # instance to shut down before claiming Telegram's single getUpdates stream.
+  print('Telegram bot polling will start after a 20-second deploy handover delay.')
+  time.sleep(20)
   while True:
     try: bot.infinity_polling(timeout=20, long_polling_timeout=15)
     except Exception as e: print('Bot error:', e); time.sleep(5)
