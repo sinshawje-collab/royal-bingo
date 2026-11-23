@@ -541,6 +541,8 @@ if bot:
     t = (m.text or '').strip()
     routes = {
       '🎮 Play': c_play, '🎮 Play Royal Bingo': c_play,
+      '📝 Register': c_reg, '📝 ምዝገባ (Register)': c_reg,
+      '👥 Invite': c_inv, '👥 ግብዣ (Invite)': c_inv,
       '💳 Deposit': c_dep, '💰 ገቢ (Deposit)': c_dep,
       '💸 Withdraw': c_wd, '💸 ወጪ (Withdraw)': c_wd,
       '🔄 Transfer': c_transfer,
