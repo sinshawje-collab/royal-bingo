@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="Royal Bingo Play Win Celebrate">
+<defs>
+ <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#100525"/><stop offset=".48" stop-color="#401078"/><stop offset="1" stop-color="#09031c"/></linearGradient>
+ <radialGradient id="glow"><stop stop-color="#ffdc68" stop-opacity=".5"/><stop offset="1" stop-color="#a855f7" stop-opacity="0"/></radialGradient>
+ <linearGradient id="gold" x2="0" y2="1"><stop stop-color="#fff4a6"/><stop offset=".35" stop-color="#ffd33d"/><stop offset=".7" stop-color="#e99512"/><stop offset="1" stop-color="#8b4705"/></linearGradient>
+ <linearGradient id="silver" x2="0" y2="1"><stop stop-color="#fff"/><stop offset=".55" stop-color="#d9d5eb"/><stop offset="1" stop-color="#8b83a7"/></linearGradient>
+ <filter id="shadow"><feGaussianBlur stdDeviation="8"/></filter>
+ <pattern id="stars" width="95" height="85" patternUnits="userSpaceOnUse"><circle cx="12" cy="17" r="2" fill="#fff" opacity=".7"/><circle cx="64" cy="54" r="1.6" fill="#fbdc76" opacity=".8"/><path d="M42 5v10M37 10h10" stroke="#fff" opacity=".4"/></pattern>
+ </defs>
+ <rect width="1200" height="675" fill="url(#bg)"/><rect width="1200" height="675" fill="url(#stars)"/>
+ <ellipse cx="600" cy="350" rx="520" ry="290" fill="url(#glow)"/>
+ <g opacity=".28" fill="none" stroke="#d8b4fe"><circle cx="600" cy="330" r="275"/><circle cx="600" cy="330" r="315"/><circle cx="600" cy="330" r="355"/></g>
+ <g transform="translate(600 105)" fill="url(#gold)" stroke="#7c3b08" stroke-width="8" stroke-linejoin="round">
+  <path d="M-118 18L-70-40L-25 5L0-75L25 5L70-40L118 18L95 70H-95Z"/>
+  <path d="M-118 18L-155-8L-135 75H135L155-8L118 18" fill="none" stroke="#ffd95a" stroke-width="14"/>
+  <circle cx="-70" cy="-40" r="12"/><circle cx="0" cy="-75" r="15"/><circle cx="70" cy="-40" r="12"/>
+ </g>
+ <g text-anchor="middle" font-family="Georgia,serif" font-weight="900">
+  <text x="600" y="290" font-size="130" letter-spacing="4" fill="#7b3507" stroke="#5a2607" stroke-width="18" paint-order="stroke">ROYAL</text>
+  <text x="600" y="280" font-size="130" letter-spacing="4" fill="url(#gold)" stroke="#fff0a0" stroke-width="3" paint-order="stroke">ROYAL</text>
+  <text x="600" y="410" font-size="142" letter-spacing="3" fill="#271044" stroke="#10051e" stroke-width="20" paint-order="stroke">BINGO</text>
+  <text x="600" y="398" font-size="142" letter-spacing="3" fill="url(#silver)" stroke="#fff" stroke-width="3" paint-order="stroke">BINGO</text>
+ </g>
+ <g font-family="Arial,sans-serif" font-weight="900" text-anchor="middle">
+  <rect x="300" y="435" width="600" height="68" rx="34" fill="url(#gold)" stroke="#fff0a0" stroke-width="5"/>
+  <text x="600" y="480" font-size="38" fill="#35104d" letter-spacing="5">PLAY  •  WIN  •  CELEBRATE</text>
+ </g>
+ <g font-family="Arial,sans-serif" font-weight="900" text-anchor="middle">
+  <g transform="translate(130 300)"><circle r="72" fill="#27205c" stroke="#d9b4ff" stroke-width="8"/><circle r="55" fill="#fff"/><text y="18" font-size="54" fill="#2563eb">22</text></g>
+  <g transform="translate(1070 280)"><circle r="72" fill="#b91c1c" stroke="#ffd4d4" stroke-width="8"/><circle r="55" fill="#fff"/><text y="18" font-size="54" fill="#dc2626">88</text></g>
+  <g transform="translate(175 515)"><circle r="54" fill="#16a34a" stroke="#bbf7d0" stroke-width="7"/><circle r="40" fill="#fff"/><text y="14" font-size="39" fill="#15803d">5</text></g>
+  <g transform="translate(1025 515)"><circle r="54" fill="#2563eb" stroke="#bfdbfe" stroke-width="7"/><circle r="40" fill="#fff"/><text y="14" font-size="39" fill="#2563eb">11</text></g>
+ </g>
+ <g transform="translate(90 85)" fill="url(#gold)"><path d="M0 60L25 0L52 38L82 0L108 60L92 92H16Z" stroke="#fff0a0" stroke-width="5"/></g>
+ <g transform="translate(1000 75)" fill="url(#gold)"><path d="M0 60L25 0L52 38L82 0L108 60L92 92H16Z" stroke="#fff0a0" stroke-width="5"/></g>
+ <rect x="8" y="8" width="1184" height="659" rx="26" fill="none" stroke="#eabf55" stroke-width="5" opacity=".75"/>
+</svg>
