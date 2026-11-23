@@ -291,7 +291,8 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
           <button class="tier-join" onclick="joinTier(50)">JOIN</button>
         </div>
       </div>
-      <div class="picker-tools"><span id="autoBtn" class="picker-auto" onclick="toggleAuto()">⚡ Auto-Mark: ON</span></div>
+      <div id="cardPicker" style="display:none">
+        <div class="picker-tools"><button class="picker-auto" onclick="backToTiers()">← ወደ ጨዋታ ምርጫ</button><span id="autoBtn" class="picker-auto" onclick="toggleAuto()">⚡ Auto-Mark: ON</span></div>
 
       <div class="lctrl">
         <div id="selLbl" class="scnt">ካርዶችዎ፡ 0 / 4</div>
@@ -306,6 +307,7 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
 
       <div class="gwrap"><div id="selGrid" class="cgrid"></div></div>
       <div id="miniStrip" class="pstrip"></div>
+      </div>
     </div>
 
     <div id="playView" style="display:none">
@@ -922,14 +924,19 @@ async function sendWd() {
 }
 
 function joinTier(s) {
-  setStake(s);
-  document.querySelectorAll('.tier-card').forEach(function(el) { el.classList.remove('active'); });
-  var chosen = document.getElementById('tier' + s);
-  if (chosen) chosen.classList.add('active');
+  stake = s;
+  document.querySelectorAll('.tier-card').forEach(function(el) { el.classList.toggle('active', el.id === 'tier' + s); });
+  document.getElementById('cardPicker').style.display = 'block';
+  pollState();
   setTimeout(function() {
-    var picker = document.getElementById('selLbl');
+    var picker = document.getElementById('cardPicker');
     if (picker) picker.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 120);
+  }, 180);
+}
+function backToTiers() {
+  document.getElementById('cardPicker').style.display = 'none';
+  var tiers = document.querySelector('.tier-head');
+  if (tiers) tiers.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function setStake(s) {
   stake = s;
