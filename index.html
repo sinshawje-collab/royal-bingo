@@ -382,6 +382,13 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
         <button class="btnd" onclick="openDrw('dep')">↓ ገቢ (DEPOSIT)</button>
         <button class="btnw" onclick="openDrw('wd')">↑ ወጪ (WITHDRAW)</button>
       </div>
+      <div class="shd" style="margin-top:14px"><span>🔄 ብር ወደ ሌላ ተጫዋች ላክ (TRANSFER)</span></div>
+      <div class="fstack" style="margin-top:9px">
+        <input id="transferPhone" class="rinp" type="tel" inputmode="tel" placeholder="የተቀባዩ ስልክ ቁጥር (09...)" />
+        <input id="transferAmount" class="rinp" type="number" min="1" step="0.01" placeholder="የሚላከው ብር (ETB)" />
+        <button id="transferBtn" class="btnp" onclick="sendTransfer()">🔄 ብር ላክ</button>
+        <div style="font-size:11px;color:var(--mut)">ተቀባዩ በRoyal Bingo የተመዘገበ መሆን አለበት። ከመላክዎ በፊት ቁጥሩን ያረጋግጡ።</div>
+      </div>
       <div id="depDrw" class="drw">
         <div class="shd c-em">📲 የገቢ ክፍያ ዘዴ ይምረጡ</div>
         <div class="tgrid" style="margin-bottom:12px">
@@ -871,6 +878,26 @@ function selectDepositMethod(method) {
   document.getElementById('agPhone').textContent = method === 'CBE Birr' ? (cfg.cbe_phone || '0941882333') : (cfg.telebirr_phone || '0941882333');
   document.getElementById('agName').textContent = method === 'CBE Birr' ? (cfg.cbe_name || 'SINSHAW JEMANEH ESHETE') : (cfg.telebirr_name || 'SINSHAW JEMANEH ESHETE');
 }
+async function sendTransfer() {
+  var phone = document.getElementById('transferPhone').value.trim();
+  var amount = Number(document.getElementById('transferAmount').value);
+  var btn = document.getElementById('transferBtn');
+  if (!phone || !Number.isFinite(amount) || amount < 1) return toast('የተቀባዩን ስልክና ትክክለኛ የብር መጠን ያስገቡ።');
+  if (!window.confirm(phone + ' ለተመዘገበው ተጫዋች ' + amount.toFixed(2) + ' ETB መላክ ይፈልጋሉ?')) return;
+  btn.disabled = true; btn.textContent = '⏳ በመላክ ላይ...';
+  try {
+    var res = await api('/api/transfer', {phone: phone, amount: amount});
+    toast('✅ ' + res.amount.toFixed(2) + ' ETB ለ ' + res.recipient + ' ተልኳል።');
+    document.getElementById('transferPhone').value = '';
+    document.getElementById('transferAmount').value = '';
+    await refresh();
+  } catch (e) {
+    toast(e.message || 'ማስተላለፉ አልተሳካም።');
+  } finally {
+    btn.disabled = false; btn.textContent = '🔄 ብር ላክ';
+  }
+}
+
 async function sendDep() {
   var a = parseFloat(document.getElementById('depAmt').value);
   var tx = document.getElementById('depTx').value.trim();
