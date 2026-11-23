@@ -130,7 +130,7 @@ body.light .status-banner{color:#1d4ed8}
 .tgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .tbtn{padding:11px;border-radius:11px;border:1px solid var(--bd);background:var(--card2);color:var(--txt);font-size:13px;font-weight:700;cursor:pointer}
 .tbtn.on{border-color:var(--gold);background:rgba(245,158,11,.16);color:var(--gold2)}
-.payment-choice{display:flex;align-items:center;justify-content:center;gap:9px;min-height:54px}.pay-logo{width:35px;height:35px;flex:0 0 35px;display:block}.pay-name{font-size:13px;font-weight:800;letter-spacing:.1px}
+.payment-choice{display:flex;align-items:center;justify-content:center;gap:9px;min-height:54px}.pay-logo{width:35px;height:35px;flex:0 0 35px;display:block}.pay-name{font-size:13px;font-weight:800;letter-spacing:.1px}.pay-logo-img{width:44px;height:38px;object-fit:contain;flex:0 0 44px;background:#fff;border-radius:7px;padding:2px}
 .bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;z-index:50;display:grid;grid-template-columns:repeat(5,1fr);background:var(--nav);border-top:1px solid var(--bd);padding:7px 4px}
 .nbtn{border:none;background:transparent;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9.5px;font-weight:700;cursor:pointer;padding:4px 2px;border-radius:10px}
 .nbtn .ni{font-size:18px;line-height:1}.nbtn.on{color:var(--gold2);background:rgba(245,158,11,.12)}
@@ -253,8 +253,8 @@ body.light .status-banner{color:#1d4ed8}
       <div id="depDrw" class="drw">
         <div class="shd c-em">📲 የገቢ ክፍያ ዘዴ ይምረጡ</div>
         <div class="tgrid" style="margin-bottom:12px">
-          <button type="button" id="depTeleBtn" class="tbtn on payment-choice" onclick="selectDepositMethod('TeleBirr')"><svg class="pay-logo" viewBox="0 0 40 40" role="img" aria-label="TeleBirr logo"><circle cx="20" cy="20" r="19" fill="#e52b35"/><path d="M12 12h16v4H22v15h-4V16h-6z" fill="#fff"/><circle cx="27.5" cy="28.5" r="2" fill="#fff"/></svg><span class="pay-name">TeleBirr</span></button>
-          <button type="button" id="depCbeBtn" class="tbtn  payment-choice" onclick="selectDepositMethod('CBE Birr')"><svg class="pay-logo" viewBox="0 0 40 40" role="img" aria-label="CBE Birr logo"><circle cx="20" cy="20" r="19" fill="#0877bd"/><path d="M29 12a13 13 0 1 0 1 16l-4-2a8.5 8.5 0 1 1-.5-11z" fill="#35b66a"/><path d="M24 15h-7a5 5 0 0 0 0 10h7" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><path d="M22 20h5" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg><span class="pay-name">CBE Birr</span></button>
+          <button type="button" id="depTeleBtn" class="tbtn on payment-choice" onclick="selectDepositMethod('TeleBirr')"><img class="pay-logo-img" src="https://assets.plqcdn.com/storage/payment-methods/May2026/c3pCxOZ0GfaXbs6hoS4h.png" alt="Official TeleBirr logo"><span class="pay-name">TeleBirr</span></button>
+          <button type="button" id="depCbeBtn" class="tbtn  payment-choice" onclick="selectDepositMethod('CBE Birr')"><img class="pay-logo-img" src="https://media.licdn.com/dms/image/v2/C4D12AQEZmf-Mj6se_A/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520060098817?e=2147483647&amp;t=GZRP6KxAgkRrKLeLXPAba0VTGq_Sn7k5JfBaKkv-k0U&amp;v=beta" alt="CBE Birr logo"><span class="pay-name">CBE Birr</span></button>
         </div>
         <div class="abox">
           <div class="arow">
@@ -274,8 +274,8 @@ body.light .status-banner{color:#1d4ed8}
         <div class="shd c-gold">💸 የወጪ ጥያቄ (Withdrawal)</div>
         <div class="shd" style="font-size:12px;color:var(--mut);margin:4px 0 8px">የወጪ ክፍያ ዘዴ ይምረጡ</div>
         <div class="tgrid" style="margin-bottom:12px">
-          <button type="button" id="wdTeleBtn" class="tbtn on payment-choice" onclick="selectWithdrawMethod('TeleBirr')"><svg class="pay-logo" viewBox="0 0 40 40" role="img" aria-label="TeleBirr logo"><circle cx="20" cy="20" r="19" fill="#e52b35"/><path d="M12 12h16v4H22v15h-4V16h-6z" fill="#fff"/><circle cx="27.5" cy="28.5" r="2" fill="#fff"/></svg><span class="pay-name">TeleBirr</span></button>
-          <button type="button" id="wdCbeBtn" class="tbtn  payment-choice" onclick="selectWithdrawMethod('CBE Birr')"><svg class="pay-logo" viewBox="0 0 40 40" role="img" aria-label="CBE Birr logo"><circle cx="20" cy="20" r="19" fill="#0877bd"/><path d="M29 12a13 13 0 1 0 1 16l-4-2a8.5 8.5 0 1 1-.5-11z" fill="#35b66a"/><path d="M24 15h-7a5 5 0 0 0 0 10h7" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><path d="M22 20h5" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg><span class="pay-name">CBE Birr</span></button>
+          <button type="button" id="wdTeleBtn" class="tbtn on payment-choice" onclick="selectWithdrawMethod('TeleBirr')"><img class="pay-logo-img" src="https://assets.plqcdn.com/storage/payment-methods/May2026/c3pCxOZ0GfaXbs6hoS4h.png" alt="Official TeleBirr logo"><span class="pay-name">TeleBirr</span></button>
+          <button type="button" id="wdCbeBtn" class="tbtn  payment-choice" onclick="selectWithdrawMethod('CBE Birr')"><img class="pay-logo-img" src="https://media.licdn.com/dms/image/v2/C4D12AQEZmf-Mj6se_A/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520060098817?e=2147483647&amp;t=GZRP6KxAgkRrKLeLXPAba0VTGq_Sn7k5JfBaKkv-k0U&amp;v=beta" alt="CBE Birr logo"><span class="pay-name">CBE Birr</span></button>
         </div>
         <div class="fstack">
           <input id="wdAmt" class="rinp" type="number" min="100" placeholder="የሚወጣው መጠን (ዝቅተኛ 100 ETB)" />
