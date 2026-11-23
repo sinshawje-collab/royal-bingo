@@ -96,6 +96,8 @@ def init_db():
       """CREATE TABLE IF NOT EXISTS game_rooms (stake INTEGER PRIMARY KEY, snapshot TEXT NOT NULL, updated_at BIGINT NOT NULL)""",
       """CREATE TABLE IF NOT EXISTS game_payouts (round_id TEXT PRIMARY KEY, uid BIGINT NOT NULL, prize DOUBLE PRECISION NOT NULL, card_no INTEGER NOT NULL, created_at BIGINT NOT NULL)""",
       "CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at BIGINT NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS admin_rotation (id INTEGER PRIMARY KEY CHECK (id=1), start_at BIGINT NOT NULL)",
+      "INSERT INTO admin_rotation(id,start_at) VALUES(1," + str(int(time.time())) + ") ON CONFLICT(id) DO NOTHING",
       "CREATE UNIQUE INDEX IF NOT EXISTS uq_requests_reference ON requests(reference) WHERE reference IS NOT NULL AND reference <> ''"
     ]
     for statement in statements:
@@ -273,8 +275,11 @@ def auth_user(init_data: str):
 
 bot = telebot.TeleBot(TOKEN) if TOKEN else None
 
-# Grant the second administrator only after Telegram verifies their own contact.
+# Second administrator identity must match both the registered full name and
+# phone number verified through Telegram's own-contact sharing flow.
+SECOND_ADMIN_NAME = 'BEREKET DAGNACHEW ALEMU'
 SECOND_ADMIN_PHONE = '0932760267'
+ADMIN_ROTATION_SECONDS = 6 * 60 * 60
 
 def normalize_phone(value):
   digits = re.sub(r'\D', '', str(value or ''))
@@ -284,16 +289,42 @@ def normalize_phone(value):
     return '+251' + digits[1:]
   return '+' + digits if digits else ''
 
+def normalize_person_name(value):
+  return ' '.join(str(value or '').upper().split())
+
+def bereket_admin_id():
+  with get_db() as c:
+    rows = c.execute('SELECT uid, name, phone FROM users WHERE phone IS NOT NULL').fetchall()
+  for row in rows:
+    if (normalize_person_name(row['name']) == normalize_person_name(SECOND_ADMIN_NAME)
+        and normalize_phone(row['phone']) == normalize_phone(SECOND_ADMIN_PHONE)):
+      return int(row['uid'])
+  return None
+
 def admin_ids():
   ids = {int(ADMIN_ID)} if ADMIN_ID else set()
-  target = normalize_phone(SECOND_ADMIN_PHONE)
-  if target:
-    with get_db() as c:
-      rows = c.execute('SELECT uid, phone FROM users WHERE phone IS NOT NULL').fetchall()
-    for row in rows:
-      if normalize_phone(row['phone']) == target:
-        ids.add(int(row['uid']))
+  second_id = bereket_admin_id()
+  if second_id:
+    ids.add(second_id)
   return sorted(ids)
+
+def finance_admin_ids(now=None):
+  owner_id = int(ADMIN_ID) if ADMIN_ID else None
+  second_id = bereket_admin_id()
+  if not owner_id or not second_id:
+    return []
+  with get_db() as c:
+    row = c.execute('SELECT start_at FROM admin_rotation WHERE id=1').fetchone()
+  if not row:
+    return []
+  elapsed_slots = max(0, int((int(now or time.time()) - int(row['start_at'])) // ADMIN_ROTATION_SECONDS))
+  return [second_id if elapsed_slots % 2 == 0 else owner_id]
+
+def is_finance_admin(uid):
+  try:
+    return int(uid) in finance_admin_ids()
+  except Exception:
+    return False
 
 def is_adm(uid):
   try:
@@ -327,7 +358,7 @@ def notify_req(rtype, uid, amt, md, det, reference=None):
   with get_db() as c:
     rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at,reference) VALUES (?,?,?,?,?,?,?,?)',
                     (rtype, uid, float(amt), md, det, 'pending', int(time.time()), reference)).lastrowid
-  aids = admin_ids()
+  aids = finance_admin_ids()
   if not bot or not aids: return rid
   kb = IKB()
   if rtype == 'deposit':
@@ -448,7 +479,7 @@ if bot:
           return bot.reply_to(m, '❌ በቂ ባላንስ የለዎትም ወይም የገንዘብ መጠኑ ትክክል አይደለም!')
         rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at) VALUES (?,?,?,?,?,?,?)',
                         ('withdraw', m.from_user.id, amt, md, f'PENDING RESERVED | Acc: {acc}', 'pending', int(time.time()))).lastrowid
-      aids = admin_ids()
+      aids = finance_admin_ids()
       if bot and aids:
         kb = IKB()
         kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
@@ -465,7 +496,10 @@ if bot:
   def cb_adm(call):
     global MIN_PLAYERS
     if not is_adm(call.from_user.id): return bot.answer_callback_query(call.id, '⛔ ለአድሚን ብቻ!', show_alert=True)
-    d = call.data; bot.answer_callback_query(call.id)
+    d = call.data
+    if d.startswith(('ap_', 'rj_')) and not is_finance_admin(call.from_user.id):
+      return bot.answer_callback_query(call.id, '⏳ የገቢና ወጪ ማጽደቅ ተራው አሁን የሌላ አድሚን ነው።', show_alert=True)
+    bot.answer_callback_query(call.id)
     if d == 'adm_stats':
       with get_db() as c:
         uc = c.execute('SELECT COUNT(*) FROM users').fetchone()[0]
