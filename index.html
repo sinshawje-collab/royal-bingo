@@ -61,8 +61,8 @@ body.light .status-banner{color:#1d4ed8}
 .d-free{background:var(--el);border:1px solid var(--bd)}.d-taken{background:rgba(239,68,68,.7)}.d-mine{background:var(--gold)}
 .gwrap{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:8px;max-height:340px;overflow-y:auto;box-shadow:var(--sh);margin-bottom:10px}
 .cgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:5px}
-.gnum{aspect-ratio:1/.9;border-radius:8px;background:var(--card2);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;cursor:pointer}
-.gnum.pending{opacity:.55;pointer-events:none;filter:saturate(.5)}
+.gnum{touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:transparent;aspect-ratio:1/.9;border-radius:8px;background:var(--card2);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;cursor:pointer}
+.gnum.pending{opacity:.62;pointer-events:none;filter:saturate(.5);outline:2px solid var(--gold)}
 .gnum.taken{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.4);color:#fca5a5}
 .gnum.sel{background:var(--ggrad);border-color:#fde68a;color:#090d16;font-weight:800;box-shadow:0 0 12px rgba(245,158,11,.55)}
 .pstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:7px}
@@ -631,6 +631,10 @@ function checkWinLocal(grid, markMap) {
 }
 
 var cardGridSignature = '';
+var cardActionQueue = [];
+var cardActionPending = {};
+var cardActionRunning = false;
+var cardGridClickBound = false;
 
 function renderState(d) {
   latestState = d;
@@ -697,16 +701,20 @@ function renderState(d) {
     if (activePlayers) activePlayers.textContent = Number(r.players || 0);
     var tEl = document.getElementById('lTmr');
     var ban = document.getElementById('statusBanner');
+    var pickerStatus = document.getElementById('pickerRoomStatus');
     if (r.phase === 'WAITING') {
       tEl.textContent = 'WAIT';
       tEl.className = 'sval c-blue';
       ban.className = 'status-banner';
-      ban.textContent = '⏳ ተጫዋቾች በመጠበቅ ላይ (' + r.players + ' / ' + r.min_players + ' ሰው) — ቢያንስ ' + r.min_players + ' ተጫዋቾች ካርድ ሲገዙ ይጀምራል';
+      ban.textContent = '⏳ ካርድ ሲመርጡ የ40 ሰከንድ ቆጠራ ይጀምራል።';
+      if (pickerStatus) pickerStatus.textContent = 'ካርድ ይምረጡ — ጨዋታው ለ40 ሰከንድ ይዘጋጃል';
     } else {
-      tEl.textContent = r.countdown + 's';
-      tEl.className = 'sval' + (r.countdown <= 5 ? ' c-red' : ' c-gold');
+      var secs = Math.max(0, Number(r.countdown || 0));
+      tEl.textContent = secs + 's';
+      tEl.className = 'sval' + (secs <= 5 ? ' c-red' : ' c-gold');
       ban.className = 'status-banner counting';
-      ban.textContent = '🔥 ጨዋታው በ ' + r.countdown + ' ሰከንድ ውስጥ ይጀምራል! ካርድ ይምረጡ';
+      ban.textContent = '🔥 ጨዋታው በ ' + secs + ' ሰከንድ ውስጥ ይጀምራል! ካርድ አሁንም መምረጥ ይችላሉ።';
+      if (pickerStatus) pickerStatus.textContent = '⏱️ ጨዋታው በ ' + secs + ' ሰከንድ ውስጥ ይጀምራል';
     }
 
     document.getElementById('selLbl').textContent = 'ካርዶችዎ፡ ' + myCards.length + ' / 4';
@@ -718,9 +726,17 @@ function renderState(d) {
       var gh = '';
       for (var i = 1; i <= 400; i++) {
         var cls = myMap[i] ? 'sel' : (tkMap[i] ? 'taken' : '');
-        gh += '<div class="gnum ' + cls + '" data-card="' + i + '" onclick="buyCard(' + i + ')">' + i + '</div>';
+        gh += '<div class="gnum ' + cls + '" data-card="' + i + '">' + i + '</div>';
       }
-      document.getElementById('selGrid').innerHTML = gh;
+      var selGridEl = document.getElementById('selGrid');
+      selGridEl.innerHTML = gh;
+      if (!cardGridClickBound) {
+        selGridEl.addEventListener('click', function(ev) {
+          var tile = ev.target.closest('.gnum[data-card]');
+          if (tile && selGridEl.contains(tile)) buyCard(Number(tile.getAttribute('data-card')));
+        });
+        cardGridClickBound = true;
+      }
       cardGridSignature = gridSignature;
     }
 
@@ -843,21 +859,38 @@ async function pollState() {
 }
 
 async function buyCard(no) {
-  if (busy) return;
-  busy = true;
+  if (!Number.isInteger(no) || no < 1 || no > 400 || cardActionPending[no]) return;
   var tile = document.querySelector('#selGrid .gnum[data-card="' + no + '"]');
-  if (tile) { tile.classList.add('pending'); tile.setAttribute('aria-busy', 'true'); }
+  if (!tile || tile.classList.contains('taken')) return;
+  cardActionPending[no] = true;
+  tile.classList.add('pending');
+  tile.setAttribute('aria-busy', 'true');
+  cardActionQueue.push({ no: no, stake: stake });
+  if (!cardActionRunning) processCardQueue();
+}
+
+async function processCardQueue() {
+  if (cardActionRunning) return;
+  cardActionRunning = true;
   ensureAudioUnlocked();
-  try {
-    var res = await apiReq('/api/buy_card', 'POST', { stake: stake, card_no: no });
-    beep(res.action === 'bought' ? 680 : 400, 0.08);
-    toast(res.action === 'bought' ? '✅ ካርድ #' + no + ' ተገዝቷል!' : '↩️ ካርድ #' + no + ' ተሰርዟል፤ ብሩ ተመልሷል።');
-    await pollState();
-  } catch (e) { toast('❌ ' + e.message); }
-  finally {
-    if (tile) { tile.classList.remove('pending'); tile.removeAttribute('aria-busy'); }
-    busy = false;
+  var refresh = false;
+  while (cardActionQueue.length) {
+    var job = cardActionQueue.shift();
+    try {
+      var res = await apiReq('/api/buy_card', 'POST', { stake: job.stake, card_no: job.no });
+      refresh = true;
+      beep(res.action === 'bought' ? 680 : 400, 0.06);
+      toast(res.action === 'bought' ? '✅ ካርድ #' + job.no + ' ተገዝቷል!' : '↩️ ካርድ #' + job.no + ' ተሰርዟል፤ ብሩ ተመልሷል።');
+    } catch (e) {
+      toast('❌ ካርድ #' + job.no + ': ' + e.message);
+    } finally {
+      delete cardActionPending[job.no];
+      var tile = document.querySelector('#selGrid .gnum[data-card="' + job.no + '"]');
+      if (tile) { tile.classList.remove('pending'); tile.removeAttribute('aria-busy'); }
+    }
   }
+  cardActionRunning = false;
+  if (refresh) await pollState();
 }
 
 async function quickPick() {
