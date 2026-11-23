@@ -363,7 +363,7 @@ def menu_kb(uid=None):
   if uid and is_adm(uid):
     kb.row(KBtn('👑 Admin Panel'), KBtn('💳 Balance'))
   else:
-    kb.row(KBtn('💳 Balance'), KBtn('👥 Invite'))
+    kb.row(KBtn('💳 Balance'))
   kb.row(KBtn('👥 Invite'), KBtn('🎧 Support'))
   kb.row(KBtn('📜 Rules'))
   return kb
