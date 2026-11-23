@@ -674,6 +674,9 @@ function renderState(d) {
   document.getElementById('hBal').textContent = balance.toFixed(2);
   document.getElementById('lWal').textContent = balance.toFixed(2);
   document.getElementById('balanceVal').textContent = balance.toFixed(2) + ' ETB';
+  // Keep the balance shown in the card-picker header synchronized on every state refresh.
+  var pickerBalanceEl = document.getElementById('pickerBalance');
+  if (pickerBalanceEl) pickerBalanceEl.textContent = balance.toFixed(2);
   document.getElementById('prName').textContent = u.name;
   document.getElementById('prId').textContent = u.player_id || 'ስልክ አልተመዘገበም';
   document.getElementById('prPly').textContent = u.matches_played;
@@ -879,6 +882,12 @@ async function processCardQueue() {
     try {
       var res = await apiReq('/api/buy_card', 'POST', { stake: job.stake, card_no: job.no });
       refresh = true;
+      // Reflect the confirmed server-side charge/refund immediately in the picker header.
+      var pickerBalanceEl = document.getElementById('pickerBalance');
+      if (pickerBalanceEl) {
+        var shownBalance = Number(pickerBalanceEl.textContent || document.getElementById('hBal').textContent || 0);
+        pickerBalanceEl.textContent = Math.max(0, shownBalance + (res.action === 'bought' ? -job.stake : job.stake)).toFixed(2);
+      }
       beep(res.action === 'bought' ? 680 : 400, 0.06);
       toast(res.action === 'bought' ? '✅ ካርድ #' + job.no + ' ተገዝቷል!' : '↩️ ካርድ #' + job.no + ' ተሰርዟል፤ ብሩ ተመልሷል።');
     } catch (e) {
