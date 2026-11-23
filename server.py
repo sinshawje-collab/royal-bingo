@@ -26,7 +26,10 @@ CBE_PHONE = os.environ.get('CBE_BIRR_PHONE', '0941882333')
 DB_PATH = os.environ.get('DB_PATH', 'royal_bingo.db')
 DATABASE_URL = os.environ.get('DATABASE_URL', '').strip().strip("'\\\"")
 HOUSE_CUT, CD_SEC, CALL_SEC, WIN_SEC = 0.20, 40, 3.0, 10
-MIN_PLAYERS = 1
+MIN_PLAYERS_BY_STAKE = {10: 1, 20: 1, 50: 1}
+MIN_PLAYERS = 1  # Admin display/default; each stake room uses MIN_PLAYERS_BY_STAKE.
+def min_players_for(stake):
+  return MIN_PLAYERS_BY_STAKE.get(int(stake), 1)
 db_lock, room_lock = threading.RLock(), threading.RLock()
 
 class HybridRow(dict):
@@ -207,12 +210,12 @@ def game_loop():
     with room_lock:
       for r in rooms.values():
         pc = n_players(r)
-        if r['phase'] == 'WAITING' and pc >= MIN_PLAYERS:
+        if r['phase'] == 'WAITING' and pc >= min_players_for(r['stake']):
           # Every round, including solo play, begins with a full 40-second lobby countdown.
           r.update({'phase': 'COUNTDOWN', 'countdown': CD_SEC, 'tick': now})
           save_room(r)
         elif r['phase'] == 'COUNTDOWN':
-          if pc < MIN_PLAYERS:
+          if pc < min_players_for(r['stake']):
             r.update({'phase': 'WAITING', 'countdown': CD_SEC, 'tick': now})
             save_room(r)
           else:
@@ -906,7 +909,7 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
     my_c = sorted([k for k, v in r['cards'].items() if v['uid'] == u['uid']])
     tk_c = sorted([k for k, v in r['cards'].items() if v['uid'] != u['uid']])
     snap = {'stake': r['stake'], 'phase': r['phase'], 'countdown': r['countdown'], 'players': n_players(r),
-            'min_players': MIN_PLAYERS, 'total_cards': len(r['cards']), 'derash': derash(r),
+            'min_players': min_players_for(stake), 'total_cards': len(r['cards']), 'derash': derash(r),
             'taken_cards': tk_c, 'my_cards': my_c, 'my_boards': {str(n): r['cards'][n]['grid'] for n in my_c},
             'called': r['called'], 'winner': r['winner'], 'winner_left': max(0, int(r['win_until'] - time.time())) if r['phase'] == 'WINNER' else 0}
   with get_db() as c:
