@@ -67,21 +67,33 @@ class DBConnection:
       return DBCursor(cur, inserted['id'] if inserted else None)
     return DBCursor(self.connection.execute(query, params))
 
-@contextmanager
-def get_db():
+_db_pool = None
+_db_pool_lock = threading.Lock()
+
+def get_db_pool():
+  global _db_pool
   if not DATABASE_URL:
     raise RuntimeError('DATABASE_URL is required; configure the Neon PostgreSQL connection in Render.')
-  with db_lock:
-    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row, connect_timeout=15)
-    c = DBConnection(conn)
-    try:
-      yield c
-      conn.commit()
-    except Exception:
-      conn.rollback()
-      raise
-    finally:
-      conn.close()
+  if _db_pool is None:
+    with _db_pool_lock:
+      if _db_pool is None:
+        from psycopg_pool import ConnectionPool
+        _db_pool = ConnectionPool(
+          conninfo=DATABASE_URL,
+          min_size=1,
+          max_size=10,
+          timeout=10,
+          kwargs={'row_factory': dict_row, 'connect_timeout': 15},
+          open=True
+        )
+  return _db_pool
+
+@contextmanager
+def get_db():
+  # Reuse warm Neon connections instead of opening a new TLS/database connection
+  # for every card tap, state poll, and wallet operation.
+  with get_db_pool().connection() as conn:
+    yield DBConnection(conn)
 
 def init_db():
   with get_db() as c:
