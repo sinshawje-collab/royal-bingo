@@ -407,8 +407,12 @@ if bot:
       owner = c.execute('SELECT uid FROM users WHERE phone=? AND uid<>?', (phone, m.from_user.id)).fetchone()
       if owner:
         return bot.reply_to(m, '❌ ይህ ስልክ ቁጥር በሌላ ተጫዋች ተመዝግቧል። ድጋፍን ያነጋግሩ።')
-      ensure_user(m.from_user.id, telegram_name)
-      c.execute('UPDATE users SET phone=? WHERE uid=?', (phone, m.from_user.id))
+      # Normalize the verified contact and bind the explicitly supplied
+      # second-admin full name only after Telegram confirms this is the sender's own contact.
+      verified_second_admin = normalize_phone(phone) == normalize_phone(SECOND_ADMIN_PHONE)
+      saved_name = SECOND_ADMIN_NAME if verified_second_admin else telegram_name
+      ensure_user(m.from_user.id, saved_name)
+      c.execute('UPDATE users SET name=?, phone=? WHERE uid=?', (saved_name, normalize_phone(phone), m.from_user.id))
     bot.send_message(m.chat.id, f'✅ ተመዝግበዋል! ({m.contact.phone_number})', reply_markup=menu_kb(m.from_user.id))
     bot.send_message(m.chat.id, '🎰 ጨዋታውን ለመክፈት ከታች ይጫኑ 👇', reply_markup=play_kb('🎮 Play Now'))
 
