@@ -826,12 +826,37 @@ async def api_claim(req: Request, x_tg_init_data: str = Header(default='')):
     return {'ok': True, 'prize': r['winner']['prize']}
 
 @app.post('/api/transfer')
-async def api_transfer(x_tg_init_data: str = Header(default='')):
+async def api_transfer(req: Request, x_tg_init_data: str = Header(default='')):
   u = auth_user(x_tg_init_data)
+  body = await req.json()
+  phone = normalize_phone(body.get('phone'))
+  try:
+    amt = round(float(body.get('amount', 0)), 2)
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'የሚላከው ብር መጠን ትክክል አይደለም።')
+  if not phone or len(re.sub(r'\D', '', phone)) != 12:
+    raise HTTPException(400, 'የተቀባዩን የተመዘገበ ስልክ ቁጥር በትክክል ያስገቡ።')
+  if not math.isfinite(amt) or amt < 1 or amt > 100000:
+    raise HTTPException(400, 'ዝቅተኛው 1 ETB ነው፤ የብር መጠኑን ያረጋግጡ።')
   with get_db() as c:
     c.execute('BEGIN IMMEDIATE')
-    raise HTTPException(410, 'Play Wallet እና Win Wallet አንድ ሆነዋል፤ ማስተላለፍ አያስፈልግም።')
-  return {'ok': True, 'amount': amt}
+    c.execute('SELECT uid FROM users WHERE uid=? FOR UPDATE', (u['uid'],))
+    matches = c.execute('SELECT uid, name FROM users WHERE phone=?', (phone,)).fetchall()
+    if not matches:
+      raise HTTPException(404, 'ይህ ስልክ ቁጥር በRoyal Bingo አልተመዘገበም።')
+    if len(matches) != 1:
+      raise HTTPException(409, 'ይህ ስልክ ቁጥር ከአንድ ተጫዋች ጋር ተያይዟል፤ ድጋፍን ያነጋግሩ።')
+    receiver = matches[0]
+    if int(receiver['uid']) == int(u['uid']):
+      raise HTTPException(400, 'ገንዘብን ወደ ራስዎ መላክ አይችሉም።')
+    available = available_wallet(c, u['uid'])
+    if available < amt:
+      raise HTTPException(400, f'በቂ ባላንስ የለዎትም። የሚገኘው {available:.2f} ETB ነው።')
+    c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)-? WHERE uid=?', (amt, u['uid']))
+    c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+? WHERE uid=?', (amt, receiver['uid']))
+    add_tx(c, u['uid'], '↗️', f'ለ {receiver["name"]} የተላከ ብር', -amt)
+    add_tx(c, receiver['uid'], '↙️', f'ከ {u["name"]} የተቀበለ ብር', amt)
+  return {'ok': True, 'amount': amt, 'recipient': receiver['name']}
 
 @app.post('/api/deposit')
 async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
