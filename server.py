@@ -267,6 +267,12 @@ def auth_user(init_data: str):
     user = ensure_user(uid, nm)
     if not user.get('phone'):
       raise HTTPException(403, 'መጀመሪያ በRoyal Bingo Bot ውስጥ /start ብለው የራስዎን ስልክ ቁጥር ያጋሩ።')
+    # Preserve the verified second-admin identity: Mini App Telegram profile names
+    # must not overwrite the canonical finance-admin name stored during contact verification.
+    if normalize_phone(user.get('phone')) == normalize_phone(SECOND_ADMIN_PHONE):
+      with get_db() as db:
+        db.execute('UPDATE users SET name=? WHERE uid=?', (SECOND_ADMIN_NAME, uid))
+        user = dict(db.execute('SELECT * FROM users WHERE uid=?', (uid,)).fetchone())
     return user
   except HTTPException:
     raise
