@@ -142,6 +142,25 @@ def ensure_user(uid, name='Player', ref=None):
 def add_tx(c, uid, ic, title, amt):
   c.execute('INSERT INTO transactions (uid,icon,title,amount,created_at) VALUES (?,?,?,?,?)', (uid, ic, title, float(amt), int(time.time())))
 
+def finance_service_status(now=None):
+  # Ethiopia uses UTC+3. Service is closed from 9:00 PM until 8:00 AM Ethiopian time.
+  local = time.gmtime((time.time() if now is None else now) + 3 * 60 * 60)
+  closed = local.tm_hour >= 21 or local.tm_hour < 8
+  return {
+    'closed': closed,
+    'local_hour': local.tm_hour,
+    'message': '⛔ የገቢና ወጪ አገልግሎት በየቀኑ ከማታ 3:00 (9:00 PM) እስከ ጠዋት 2:00 (8:00 AM) ድረስ ዝግ ነው። እባክዎ ከጠዋት 2:00 በኋላ ይመለሱ።'
+  }
+
+def ensure_finance_service_open():
+  status = finance_service_status()
+  if status['closed']:
+    raise HTTPException(503, status['message'])
+  return status
+
+def finance_closed_bot_message():
+  return '⛔ የገቢና ወጪ አገልግሎት በየቀኑ ከማታ 3:00 (9:00 PM) እስከ ጠዋት 2:00 (8:00 AM) ድረስ ዝግ ነው። እባክዎ ከጠዋት 2:00 በኋላ ይሞክሩ።'
+
 def available_wallet(c, uid):
   row = c.execute("SELECT COALESCE(play_wallet,0)+COALESCE(win_wallet,0)-COALESCE((SELECT SUM(amount) FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending' AND details LIKE 'PENDING RESERVED |%'),0) AS available FROM users WHERE uid=?", (uid, uid)).fetchone()
   return float(row['available'] or 0) if row else 0.0
@@ -592,16 +611,20 @@ if bot:
   @bot.message_handler(commands=['deposit'])
   @bot.message_handler(func=lambda m: m.text in ('💰 ገቢ (Deposit)', '💳 Deposit'))
   def c_dep(m):
+    if finance_service_status()['closed']: return bot.send_message(m.chat.id, finance_closed_bot_message())
     kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='dep_TeleBirr'), IBtn('🏦 CBE Birr', callback_data='dep_CBE'))
     bot.send_message(m.chat.id, '💳 የክፍያ አማራጭ ይምረጡ፦', reply_markup=kb)
 
   @bot.callback_query_handler(func=lambda c: c.data in ('dep_TeleBirr', 'dep_CBE'))
   def cb_dep(call):
+    if finance_service_status()['closed']:
+      return bot.answer_callback_query(call.id, finance_closed_bot_message(), show_alert=True)
     bot.answer_callback_query(call.id); md = call.data.split('_')[1]
     bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💵 በ {md} የሚያስገቡትን መጠን ይጻፉ (ዝቅተኛ 20 ETB)፦'), s_dep_amt, md)
 
   def s_dep_amt(m, md):
     if dispatch_menu_from_step(m): return
+    if finance_service_status()['closed']: return bot.reply_to(m, finance_closed_bot_message())
     try:
       amt = float((m.text or '').strip())
       if not math.isfinite(amt) or amt < 20 or amt > 1000000:
@@ -612,6 +635,7 @@ if bot:
 
   def s_dep_tx(m, amt, md):
     if dispatch_menu_from_step(m): return
+    if finance_service_status()['closed']: return bot.reply_to(m, finance_closed_bot_message())
     tx = (m.text or '').strip()
     if len(tx) < 4 or len(tx) > 120: return bot.reply_to(m, '❌ ትክክለኛ Transaction ID ያስገቡ።')
     try: notify_req('deposit', m.from_user.id, amt, md, f'TX: {tx}', reference=tx)
@@ -621,16 +645,20 @@ if bot:
   @bot.message_handler(commands=['withdraw'])
   @bot.message_handler(func=lambda m: m.text in ('💸 ወጪ (Withdraw)', '💸 Withdraw'))
   def c_wd(m):
+    if finance_service_status()['closed']: return bot.send_message(m.chat.id, finance_closed_bot_message())
     kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='wd_TeleBirr'), IBtn('🏦 CBE Birr', callback_data='wd_CBE'))
     bot.send_message(m.chat.id, '💸 ወደ የትኛው አካውንት ማውጣት ይፈልጋሉ?', reply_markup=kb)
 
   @bot.callback_query_handler(func=lambda c: c.data in ('wd_TeleBirr', 'wd_CBE'))
   def cb_wd(call):
+    if finance_service_status()['closed']:
+      return bot.answer_callback_query(call.id, finance_closed_bot_message(), show_alert=True)
     bot.answer_callback_query(call.id); md = call.data.split('_')[1]
     bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💸 በ {md} የሚወጣውን መጠን ይጻፉ (ዝቅተኛ 100 ETB)፦'), s_wd_amt, md)
 
   def s_wd_amt(m, md):
     if dispatch_menu_from_step(m): return
+    if finance_service_status()['closed']: return bot.reply_to(m, finance_closed_bot_message())
     u = ensure_user(m.from_user.id)
     try: amt = float((m.text or '').strip())
     except Exception: return bot.reply_to(m, '❌ ትክክለኛ ቁጥር ያስገቡ።')
@@ -644,6 +672,7 @@ if bot:
 
   def s_wd_acc(m, amt, md):
     if dispatch_menu_from_step(m): return
+    if finance_service_status()['closed']: return bot.reply_to(m, finance_closed_bot_message())
     acc = (m.text or '').strip()
     if len(acc) < 6 or len(acc) > 64:
       return bot.reply_to(m, '❌ ትክክለኛ የስልክ/አካውንት ቁጥር ያስገቡ።')
@@ -936,7 +965,7 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
     txs = sorted(txs + pending, key=lambda x: x['created_at'], reverse=True)[:25]
     top = [dict(x) for x in c.execute('SELECT name,total_won FROM users WHERE total_won>0 ORDER BY total_won DESC LIMIT 10').fetchall()]
   admin_view = is_adm(u['uid'])
-  return {'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': admin_view,
+  return {'finance_service': finance_service_status(), 'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': admin_view,
           'finance_rotation': finance_rotation_status() if admin_view else None,
           'config': {**active_payment_accounts(), 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
 
@@ -1020,6 +1049,7 @@ async def api_transfer(req: Request, x_tg_init_data: str = Header(default='')):
 
 @app.post('/api/deposit')
 async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
+  ensure_finance_service_open()
   u, b = auth_user(x_tg_init_data), await req.json()
   try: amt = float(b.get('amount', 0))
   except (TypeError, ValueError): raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
@@ -1108,6 +1138,7 @@ async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default
 
 @app.post('/api/withdraw')
 async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
+  ensure_finance_service_open()
   u, b = auth_user(x_tg_init_data), await req.json()
   try: amt = float(b.get('amount', 0))
   except (TypeError, ValueError): raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
