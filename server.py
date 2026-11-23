@@ -994,6 +994,7 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
   u = auth_user(x_tg_init_data)
   if stake not in rooms: raise HTTPException(400, 'ልክ ያልሆነ የጨዋታ ክፍል!')
   r = rooms[stake]
+  admin_view = is_adm(u['uid'])
   with room_lock:
     my_c = sorted([k for k, v in r['cards'].items() if v['uid'] == u['uid']])
     tk_c = sorted([k for k, v in r['cards'].items() if v['uid'] != u['uid']])
@@ -1001,13 +1002,16 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
             'min_players': min_players_for(stake), 'total_cards': len(r['cards']), 'derash': derash(r),
             'taken_cards': tk_c, 'my_cards': my_c, 'my_boards': {str(n): r['cards'][n]['grid'] for n in my_c},
             'called': r['called'], 'winner': r['winner'], 'winner_left': max(0, int(r['win_until'] - time.time())) if r['phase'] == 'WINNER' else 0}
+    admin_rooms = {}
+    if admin_view:
+      for room_stake, room in rooms.items():
+        admin_rooms[str(room_stake)] = {'stake': room_stake, 'phase': room['phase'], 'players': n_players(room), 'derash': derash(room), 'called': list(room['called']), 'upcoming': list(reversed(room['deck'])) if room['phase'] == 'PLAYING' else [], 'remaining': len(room['deck))}
   with get_db() as c:
     txs = [dict(x) for x in c.execute('SELECT icon,title,amount,created_at, NULL AS status FROM transactions WHERE uid=? ORDER BY id DESC LIMIT 25', (u['uid'],)).fetchall()]
     pending = [dict(x) for x in c.execute("SELECT '⏳' AS icon, 'የወጪ ጥያቄ ('||method||') - PENDING' AS title, -amount AS amount, created_at, status FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending' AND details LIKE 'PENDING RESERVED |%' ORDER BY id DESC LIMIT 25", (u['uid'],)).fetchall()]
     txs = sorted(txs + pending, key=lambda x: x['created_at'], reverse=True)[:25]
     top = [dict(x) for x in c.execute('SELECT name,total_won FROM users WHERE total_won>0 ORDER BY total_won DESC LIMIT 10').fetchall()]
-  admin_view = is_adm(u['uid'])
-  return {'finance_service': finance_service_status(), 'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': admin_view,
+  return {'admin_rooms': admin_rooms if admin_view else None, 'finance_service': finance_service_status(), 'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': admin_view,
           'finance_rotation': finance_rotation_status() if admin_view else None,
           'config': {**active_payment_accounts(), 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
 
