@@ -1090,6 +1090,20 @@ function openDrw(w) {
   if (transfer) transfer.classList.remove('on');
   target.classList.toggle('on', opening);
 }
+function openRequestedSection() {
+  var params = new URLSearchParams(window.location.search);
+  var section = params.get('section');
+  var action = params.get('action');
+  if (!section) return;
+  if (section === 'wallet') {
+    goTab('wallet');
+    if (action === 'deposit') openDrw('dep');
+    else if (action === 'withdraw') openDrw('wd');
+    else if (action === 'transfer') toggleTransfer();
+  } else if (section === 'bingo' || section === 'history' || section === 'rank' || section === 'profile') {
+    goTab(section);
+  }
+}
 function setThm(t) {
   document.body.classList.toggle('light', t === 'light');
   document.getElementById('dkBtn').classList.toggle('on', t === 'dark');
@@ -1100,6 +1114,7 @@ function cpTxt(t, m) {
   toast(m || 'ተቀድቷል!');
 }
 
+openRequestedSection();
 pollState();
 setInterval(pollState, 1200);
 </script>
