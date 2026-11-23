@@ -355,12 +355,17 @@ def is_adm(uid):
     return False
 
 def menu_kb(uid=None):
-  kb = RKB(resize_keyboard=True)
-  kb.row(KBtn('🎮 Play Royal Bingo'))
-  kb.row(KBtn('💰 ገቢ (Deposit)'), KBtn('💸 ወጪ (Withdraw)'))
-  kb.row(KBtn('💳 ባላንስ (Balance)'), KBtn('👥 ግብዣ (Invite)'))
-  kb.row(KBtn('📝 ምዝገባ (Register)'), KBtn('🎧 ድጋፍ (Support)'))
-  kb.row(KBtn('📜 ህግና መመሪያ'), KBtn('👑 Admin Panel')) if (uid and is_adm(uid)) else kb.row(KBtn('📜 ህግና መመሪያ'))
+  # Two-column Telegram home menu inspired by the supplied Cheers Bingo example.
+  kb = RKB(resize_keyboard=True, row_width=2)
+  kb.row(KBtn('📝 Register'), KBtn('🎮 Play'))
+  kb.row(KBtn('💳 Deposit'), KBtn('📢 Join Channel'))
+  kb.row(KBtn('💸 Withdraw'), KBtn('🔄 Transfer'))
+  if uid and is_adm(uid):
+    kb.row(KBtn('👑 Admin Panel'), KBtn('💳 Balance'))
+  else:
+    kb.row(KBtn('💳 Balance'), KBtn('👥 Invite'))
+  kb.row(KBtn('👥 Invite'), KBtn('🎧 Support'))
+  kb.row(KBtn('📜 Rules'))
   return kb
 
 def play_kb(lbl='🎲 Play Royal Bingo'):
@@ -451,17 +456,17 @@ if bot:
       except Exception: pass
 
   @bot.message_handler(commands=['play'])
-  @bot.message_handler(func=lambda m: m.text == '🎮 Play Royal Bingo')
+  @bot.message_handler(func=lambda m: m.text in ('🎮 Play Royal Bingo', '🎮 Play'))
   def c_play(m): bot.send_message(m.chat.id, 'Good luck Royal Bingo 🍀', reply_markup=play_kb('🎲 Play Royal Bingo'))
 
   @bot.message_handler(commands=['balance'])
-  @bot.message_handler(func=lambda m: m.text == '💳 ባላንስ (Balance)')
+  @bot.message_handler(func=lambda m: m.text in ('💳 ባላንስ (Balance)', '💳 Balance'))
   def c_bal(m):
     u = ensure_user(m.from_user.id, m.from_user.first_name or 'Player')
     bot.send_message(m.chat.id, f'💰 ጠቅላላ ባላንስ: {u["play_wallet"]+u["win_wallet"]:.2f} ETB', reply_markup=play_kb('🎲 Play'))
 
   @bot.message_handler(commands=['deposit'])
-  @bot.message_handler(func=lambda m: m.text == '💰 ገቢ (Deposit)')
+  @bot.message_handler(func=lambda m: m.text in ('💰 ገቢ (Deposit)', '💳 Deposit'))
   def c_dep(m):
     kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='dep_TeleBirr'), IBtn('🏦 CBE Birr', callback_data='dep_CBE'))
     bot.send_message(m.chat.id, '💳 የክፍያ አማራጭ ይምረጡ፦', reply_markup=kb)
@@ -488,7 +493,7 @@ if bot:
     bot.reply_to(m, f'✅ የ {amt:.2f} ETB ገቢ ጥያቄዎ ለአድሚን ተልኳል!', reply_markup=menu_kb(m.from_user.id))
 
   @bot.message_handler(commands=['withdraw'])
-  @bot.message_handler(func=lambda m: m.text == '💸 ወጪ (Withdraw)')
+  @bot.message_handler(func=lambda m: m.text in ('💸 ወጪ (Withdraw)', '💸 Withdraw'))
   def c_wd(m):
     kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='wd_TeleBirr'), IBtn('🏦 CBE Birr', callback_data='wd_CBE'))
     bot.send_message(m.chat.id, '💸 ወደ የትኛው አካውንት ማውጣት ይፈልጋሉ?', reply_markup=kb)
@@ -652,20 +657,33 @@ if bot:
         print(f'Bot admin broadcast failed for {uid}: {type(exc).__name__}: {exc}')
     bot.reply_to(m, f'✅ ተሳክቷል: {sent} | አልተሳካም: {failed} | ጠቅላላ: {len(uids)}')
 
-  @bot.message_handler(func=lambda m: m.text == '👥 ግብዣ (Invite)')
+  @bot.message_handler(func=lambda m: m.text in ('👥 ግብዣ (Invite)', '👥 Invite'))
   def c_inv(m):
     me = bot.get_me()
     bot.send_message(m.chat.id, f'🎁 ለእያንዳንዱ ስኬታማ ግብዣ 15 ETB ይሸለሙ!\n🔗 https://t.me/{me.username}?start={m.from_user.id}')
 
-  @bot.message_handler(func=lambda m: m.text == '📝 ምዝገባ (Register)')
+  @bot.message_handler(func=lambda m: m.text in ('📝 ምዝገባ (Register)', '📝 Register'))
   def c_reg(m):
     kb = RKB(resize_keyboard=True, one_time_keyboard=True); kb.add(KBtn('📱 ስልክ ቁጥር አጋራ', request_contact=True))
     bot.send_message(m.chat.id, '📱 ስልክ ቁጥርዎን ያጋሩ 👇', reply_markup=kb)
 
-  @bot.message_handler(func=lambda m: m.text == '🎧 ድጋፍ (Support)')
+  @bot.message_handler(func=lambda m: m.text == '🔄 Transfer')
+  def c_transfer(m):
+    bot.send_message(m.chat.id, '🔄 የገንዘብ ማስተላለፍን ከRoyal Bingo App ውስጥ ይጠቀሙ።', reply_markup=play_kb('🔄 Open Wallet'))
+
+  @bot.message_handler(func=lambda m: m.text == '📢 Join Channel')
+  def c_channel(m):
+    channel_url = os.environ.get('CHANNEL_URL', '').strip()
+    if channel_url.startswith(('https://t.me/', 'http://t.me/')):
+      kb = IKB(); kb.add(IBtn('📢 Join Royal Bingo Channel', url=channel_url))
+      bot.send_message(m.chat.id, '📢 የRoyal Bingo ቻናላችንን ለመቀላቀል ከታች ይጫኑ።', reply_markup=kb)
+    else:
+      bot.send_message(m.chat.id, '📢 የRoyal Bingo Channel ሊንክ ገና አልተዘጋጀም።')
+
+  @bot.message_handler(func=lambda m: m.text in ('🎧 ድጋፍ (Support)', '🎧 Support'))
   def c_sup(m): bot.send_message(m.chat.id, f'🎧 ድጋፍ፦ {SUPPORT}')
 
-  @bot.message_handler(func=lambda m: m.text == '📜 ህግና መመሪያ')
+  @bot.message_handler(func=lambda m: m.text in ('📜 ህግና መመሪያ', '📜 Rules'))
   def c_rules(m): bot.send_message(m.chat.id, '📜 ህግና መመሪያ\n• ቢያንስ 2 ተጫዋቾች ካርድ ሲገዙ ይጀምራል።\n• ካርድ: 10/20/50 ብር (እስከ 4)።\n• ደራሽ: 80% ለአሸናፊው።\n• ዝቅተኛ ወጪ: 100 ETB።')
 
 def run_bot():
