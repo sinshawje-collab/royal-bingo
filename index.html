@@ -114,7 +114,7 @@ body.light .status-banner{color:#1d4ed8}
 .wsub .l{font-size:10.5px;color:var(--mut);font-weight:700;margin-bottom:5px}
 .wsub .a{font-size:20px;font-weight:900;margin-bottom:3px}
 .wsub .h{font-size:10px;color:var(--dim)}
-.wact{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.wact{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.wact button{min-width:0;padding:11px 5px;font-size:11px;white-space:nowrap}
 .btnd{padding:12px;border-radius:12px;border:none;background:var(--egrad);color:#fff;font-size:13px;font-weight:800;cursor:pointer}
 .btnw{padding:12px;border-radius:12px;border:none;background:var(--ggrad);color:#090d16;font-size:13px;font-weight:800;cursor:pointer}
 .drw{display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--bd)}.drw.on{display:block}
@@ -379,15 +379,18 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
         <div class="h">ለመጫወትም ሆነ ለማውጣት የሚጠቀሙበት አንድ ባላንስ</div>
       </div>
       <div class="wact">
-        <button class="btnd" onclick="openDrw('dep')">↓ ገቢ (DEPOSIT)</button>
-        <button class="btnw" onclick="openDrw('wd')">↑ ወጪ (WITHDRAW)</button>
+        <button class="btnd" onclick="openDrw('dep')">↓ ገቢ</button>
+        <button class="btnw" onclick="openDrw('wd')">↑ ወጪ</button>
+        <button class="btnp" onclick="toggleTransfer()">🔄 Transfer</button>
       </div>
-      <div class="shd" style="margin-top:14px"><span>🔄 ብር ወደ ሌላ ተጫዋች ላክ (TRANSFER)</span></div>
-      <div class="fstack" style="margin-top:9px">
-        <input id="transferPhone" class="rinp" type="tel" inputmode="tel" placeholder="የተቀባዩ ስልክ ቁጥር (09...)" />
-        <input id="transferAmount" class="rinp" type="number" min="1" step="0.01" placeholder="የሚላከው ብር (ETB)" />
-        <button id="transferBtn" class="btnp" onclick="sendTransfer()">🔄 ብር ላክ</button>
-        <div style="font-size:11px;color:var(--mut)">ተቀባዩ በRoyal Bingo የተመዘገበ መሆን አለበት። ከመላክዎ በፊት ቁጥሩን ያረጋግጡ።</div>
+      <div id="transferPanel" class="drw">
+        <div class="shd"><span>🔄 ብር ወደ ሌላ ተጫዋች ላክ</span></div>
+        <div class="fstack" style="margin-top:9px">
+          <input id="transferPhone" class="rinp" type="tel" inputmode="tel" placeholder="የተቀባዩ ስልክ ቁጥር (09...)" />
+          <input id="transferAmount" class="rinp" type="number" min="1" step="0.01" placeholder="የሚላከው ብር (ETB)" />
+          <button id="transferBtn" class="btnp" onclick="sendTransfer()">🔄 ብር ላክ</button>
+          <div style="font-size:11px;color:var(--mut)">ተቀባዩ በRoyal Bingo የተመዘገበ መሆን አለበት። ከመላክዎ በፊት ቁጥሩን ያረጋግጡ።</div>
+        </div>
       </div>
       <div id="depDrw" class="drw">
         <div class="shd c-em">📲 የገቢ ክፍያ ዘዴ ይምረጡ</div>
@@ -878,6 +881,13 @@ function selectDepositMethod(method) {
   document.getElementById('agPhone').textContent = method === 'CBE Birr' ? (cfg.cbe_phone || '0941882333') : (cfg.telebirr_phone || '0941882333');
   document.getElementById('agName').textContent = method === 'CBE Birr' ? (cfg.cbe_name || 'SINSHAW JEMANEH ESHETE') : (cfg.telebirr_name || 'SINSHAW JEMANEH ESHETE');
 }
+function toggleTransfer() {
+  var panel = document.getElementById('transferPanel');
+  if (!panel) return;
+  panel.classList.toggle('on');
+  if (panel.classList.contains('on')) document.getElementById('transferPhone').focus();
+}
+
 async function sendTransfer() {
   var phone = document.getElementById('transferPhone').value.trim();
   var amount = Number(document.getElementById('transferAmount').value);
