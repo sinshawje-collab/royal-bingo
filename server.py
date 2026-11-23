@@ -23,6 +23,11 @@ TB_NAME = os.environ.get('TELEBIRR_NAME', 'SINSHAW JEMANEH ESHETE')
 TB_PHONE = os.environ.get('TELEBIRR_PHONE', '0941882333')
 CBE_NAME = os.environ.get('CBE_BIRR_NAME', 'Sinshaw Jemaneh Eshete')
 CBE_PHONE = os.environ.get('CBE_BIRR_PHONE', '0941882333')
+
+
+def payment_method_label(method):
+  """Use the public-facing payment provider name consistently."""
+  return 'CBE Birr' if str(method or '').strip() in ('CBE', 'CBE Birr') else str(method or 'TeleBirr').strip()
 DB_PATH = os.environ.get('DB_PATH', 'royal_bingo.db')
 DATABASE_URL = os.environ.get('DATABASE_URL', '').strip().strip("'\\\"")
 HOUSE_CUT, CD_SEC, CALL_SEC, WIN_SEC = 0.20, 40, 3.0, 10
@@ -528,7 +533,7 @@ def notify_req(rtype, uid, amt, md, det, reference=None):
   else:
     hdr = '🔔 አዲስ የወጪ (WITHDRAW) ጥያቄ!'
     kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
-  msg = f'{hdr}\\n\\n🆔 Request #{rid}\\n👤 {u["name"]}\\n🆔 Player ID: {u["phone"] or "Not registered"}\\n💵 {float(amt):.2f} ETB\\n🏦 {md}\\n📝 {det}'
+  msg = f'{hdr}\\n\\n🆔 Request #{rid}\\n👤 {u["name"]}\\n🆔 Player ID: {u["phone"] or "Not registered"}\\n💵 {float(amt):.2f} ETB\\n🏦 {payment_method_label(md)}\\n📝 {det}'
   for aid in aids:
     try: bot.send_message(aid, msg, reply_markup=kb)
     except Exception: pass
@@ -684,7 +689,7 @@ if bot:
     if finance_service_closed_for(call.from_user.id):
       return bot.answer_callback_query(call.id, finance_closed_bot_message(), show_alert=True)
     bot.answer_callback_query(call.id); md = call.data.split('_')[1]
-    bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💸 በ {md} የሚወጣውን መጠን ይጻፉ (ዝቅተኛ 100 ETB)፦'), s_wd_amt, md)
+    bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💸 በ {payment_method_label(md)} የሚወጣውን መጠን ይጻፉ (ዝቅተኛ 100 ETB)፦'), s_wd_amt, md)
 
   def s_wd_amt(m, md):
     if dispatch_menu_from_step(m): return
@@ -698,7 +703,7 @@ if bot:
       available = available_wallet(c, m.from_user.id)
     if available < amt:
       return bot.reply_to(m, f'❌ በቂ ያልሆነ ባላንስ። ለወጪ የሚገኘው: {available:.2f} ETB')
-    bot.register_next_step_handler(bot.reply_to(m, f'📱 የ {md} ስልክ/አካውንት ቁጥርዎን ያስገቡ፦'), s_wd_acc, amt, md)
+    bot.register_next_step_handler(bot.reply_to(m, f'📱 የ {payment_method_label(md)} ስልክ/አካውንት ቁጥርዎን ያስገቡ፦'), s_wd_acc, amt, md)
 
   def s_wd_acc(m, amt, md):
     if dispatch_menu_from_step(m): return
@@ -718,7 +723,7 @@ if bot:
       if bot and aids:
         kb = IKB()
         kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
-        msg = f'🔔 አዲስ የወጪ ጥያቄ!\n\n🆔 Request #{rid}\n👤 {u["name"]}\n🆔 Player ID: {m.from_user.id}\n💵 {amt:.2f} ETB\n🏦 የወጪ ዘዴ: {md}\n📱 የተቀባይ ቁጥር: {acc}'
+        msg = f'🔔 አዲስ የወጪ ጥያቄ!\n\n🆔 Request #{rid}\n👤 {u["name"]}\n🆔 Player ID: {m.from_user.id}\n💵 {amt:.2f} ETB\n🏦 የወጪ ዘዴ: {payment_method_label(md)}\n📱 የተቀባይ ቁጥር: {acc}'
         for aid in aids:
           try: bot.send_message(aid, msg, reply_markup=kb)
           except Exception as notify_exc:
@@ -787,7 +792,7 @@ if bot:
         if rt == 'dep' and act == 'ap':
           c.execute("UPDATE requests SET status='approved' WHERE id=?", (int(rid),))
           c.execute('UPDATE users SET play_wallet=play_wallet+? WHERE uid=?', (amt, uid))
-          add_tx(c, uid, '💰', f'ገቢ ጸድቋል ({rq["method"]})', amt)
+          add_tx(c, uid, '💰', f'ገቢ ጸድቋል ({payment_method_label(rq["method"])})', amt)
           u = c.execute('SELECT referred_by FROM users WHERE uid=?', (uid,)).fetchone()
           if u and u['referred_by']:
             c.execute('UPDATE users SET play_wallet=play_wallet+15 WHERE uid=?', (u['referred_by'],))
@@ -805,9 +810,9 @@ if bot:
             if cur.rowcount != 1:
               return bot.send_message(call.message.chat.id, f'❌ Request #{rid}: በተጫዋቹ ባላንስ ላይ ችግር አለ፤ ክፍያውን አትመዝግቡ።')
           c.execute("UPDATE requests SET status='paid' WHERE id=?", (int(rid),))
-          add_tx(c, uid, '💸', f'ወጪ ተልኳል ({rq["method"]})', -amt)
+          add_tx(c, uid, '💸', f'ወጪ ተልኳል ({payment_method_label(rq["method"])})', -amt)
           bot.edit_message_text(call.message.text + f'\n\n✅ ተልኳል ({amt:.2f} ETB)', call.message.chat.id, call.message.message_id)
-          try: bot.send_message(uid, f'✅ የ {amt:.2f} ETB ወጪዎ በ {rq["method"]} ተልኳል!')
+          try: bot.send_message(uid, f'✅ የ {amt:.2f} ETB ወጪዎ በ {payment_method_label(rq["method"])} ተልኳል!')
           except Exception: pass
         else:
           c.execute("UPDATE requests SET status='rejected' WHERE id=?", (int(rid),))
@@ -1208,7 +1213,7 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
       kb = IKB()
       kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
       player_phone = u.get('phone') or 'Not registered'
-      msg = f'🔔 አዲስ የወጪ ጥያቄ!\\n\\n🆔 Request #{rid}\\n👤 {u["name"]}\\n🆔 Player ID: {player_phone}\\n💵 {amt:.2f} ETB\\n🏦 የወጪ ዘዴ: {method}\\n📱 የተቀባይ ቁጥር: {ph}\\n⏳ ሁኔታ: PENDING'
+      msg = f'🔔 አዲስ የወጪ ጥያቄ!\\n\\n🆔 Request #{rid}\\n👤 {u["name"]}\\n🆔 Player ID: {player_phone}\\n💵 {amt:.2f} ETB\\n🏦 የወጪ ዘዴ: {payment_method_label(method)}\\n📱 የተቀባይ ቁጥር: {ph}\\n⏳ ሁኔታ: PENDING'
       for aid in aids:
         try:
           bot.send_message(aid, msg, reply_markup=kb)
