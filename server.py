@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 import telebot
-from telebot.types import InlineKeyboardButton as IBtn, InlineKeyboardMarkup as IKB, KeyboardButton as KBtn, ReplyKeyboardMarkup as RKB, WebAppInfo
+from telebot.types import InlineKeyboardButton as IBtn, InlineKeyboardMarkup as IKB, KeyboardButton as KBtn, ReplyKeyboardMarkup as RKB, ReplyKeyboardRemove as RKR, WebAppInfo
 
 TOKEN = os.environ.get('BOT_TOKEN', '').strip().strip("'\"")
 try: ADMIN_ID = int(os.environ.get('ADMIN_ID', '0').strip().strip("'\"") or '0')
@@ -515,7 +515,10 @@ def is_adm(uid):
     return False
 
 def menu_kb(uid=None):
-  # Keep Telegram menu actions as normal text buttons so bot workflows run.
+  # Admin accounts must never see player-facing reply-keyboard actions.
+  if uid and is_adm(uid):
+    return RKR()
+  # Keep Telegram menu actions as normal text buttons so player workflows run.
   kb = RKB(resize_keyboard=True, row_width=2)
   kb.row(KBtn('📝 Register'), KBtn('🎮 Play'))
   kb.row(KBtn('💳 Deposit'), KBtn('📢 Join Channel'))
@@ -585,7 +588,8 @@ if bot:
     try:
       if not is_adm(uid):
         return bot.reply_to(m, '⛔ ይህ መቆጣጠሪያ ለተፈቀደላቸው አድሚኖች ብቻ ነው። የTelegram ID ለማየት /myid ይጻፉ።')
-      bot.send_message(m.chat.id, '👑 ROYAL BINGO — የአድሚን መቆጣጠሪያ', reply_markup=adm_kb())
+      bot.send_message(m.chat.id, '👑 ROYAL BINGO — የአድሚን መቆጣጠሪያ', reply_markup=RKR())
+      bot.send_message(m.chat.id, '👑 የአድሚን መቆጣጠሪያ', reply_markup=adm_kb())
     except Exception as exc:
       print(f'Admin panel open failed for uid={uid}: {type(exc).__name__}: {exc}')
       try:
@@ -601,7 +605,7 @@ if bot:
     u = ensure_user(m.from_user.id, telegram_name, ref)
     # Administrators enter the control panel directly; no player registration or Play button required.
     if is_adm(m.from_user.id):
-      bot.send_message(m.chat.id, '👑 ROYAL BINGO — እንኳን ወደ Admin Control Center በደህና መጡ!', reply_markup=menu_kb(m.from_user.id))
+      bot.send_message(m.chat.id, '👑 ROYAL BINGO — እንኳን ወደ Admin Control Center በደህና መጡ!', reply_markup=RKR())
       return bot.send_message(m.chat.id, '👑 የአድሚን መቆጣጠሪያ', reply_markup=adm_kb())
     if not u['phone']:
       kb = RKB(resize_keyboard=True, one_time_keyboard=True); kb.add(KBtn('📱 ስልክ ቁጥር አጋራ', request_contact=True))
