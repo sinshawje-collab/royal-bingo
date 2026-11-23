@@ -767,7 +767,9 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
     pending = [dict(x) for x in c.execute("SELECT '⏳' AS icon, 'የወጪ ጥያቄ ('||method||') - PENDING' AS title, -amount AS amount, created_at, status FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending' AND details LIKE 'PENDING RESERVED |%' ORDER BY id DESC LIMIT 25", (u['uid'],)).fetchall()]
     txs = sorted(txs + pending, key=lambda x: x['created_at'], reverse=True)[:25]
     top = [dict(x) for x in c.execute('SELECT name,total_won FROM users WHERE total_won>0 ORDER BY total_won DESC LIMIT 10').fetchall()]
-  return {'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': is_adm(u['uid']),
+  admin_view = is_adm(u['uid'])
+  return {'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': admin_view,
+          'finance_rotation': finance_rotation_status() if admin_view else None,
           'config': {**active_payment_accounts(), 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
 
 @app.post('/api/buy_card')
