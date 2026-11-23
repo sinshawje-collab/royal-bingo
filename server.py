@@ -387,7 +387,8 @@ if bot:
   def c_start(m):
     ps = (m.text or '').split()
     ref = int(ps[1]) if len(ps) > 1 and ps[1].isdigit() and int(ps[1]) != m.from_user.id else None
-    u = ensure_user(m.from_user.id, m.from_user.first_name or 'Player', ref)
+    telegram_name = ' '.join(x for x in [m.from_user.first_name, m.from_user.last_name] if x) or 'Player'
+    u = ensure_user(m.from_user.id, telegram_name, ref)
     if not u['phone']:
       kb = RKB(resize_keyboard=True, one_time_keyboard=True); kb.add(KBtn('📱 ስልክ ቁጥር አጋራ', request_contact=True))
       return bot.send_message(m.chat.id, '👑 እንኳን ወደ ROYAL BINGO በደህና መጡ!\n\nለመመዝገብ ስልክ ቁጥርዎን ያጋሩ 👇', reply_markup=kb)
@@ -399,11 +400,14 @@ if bot:
     if getattr(m.contact, 'user_id', None) and m.contact.user_id != m.from_user.id:
       return bot.reply_to(m, '❌ እባክዎ የራስዎን ስልክ ቁጥር ብቻ ያጋሩ።')
     phone = (m.contact.phone_number or '').strip()
+    if normalize_phone(phone) == normalize_phone(SECOND_ADMIN_PHONE) and getattr(m.contact, 'user_id', None) != m.from_user.id:
+      return bot.reply_to(m, '❌ ለአድሚን ማረጋገጫ የራስዎን Telegram Contact ከስልክዎ ያጋሩ።')
+    telegram_name = ' '.join(x for x in [m.from_user.first_name, m.from_user.last_name] if x) or 'Player'
     with get_db() as c:
       owner = c.execute('SELECT uid FROM users WHERE phone=? AND uid<>?', (phone, m.from_user.id)).fetchone()
       if owner:
         return bot.reply_to(m, '❌ ይህ ስልክ ቁጥር በሌላ ተጫዋች ተመዝግቧል። ድጋፍን ያነጋግሩ።')
-      ensure_user(m.from_user.id, m.from_user.first_name or 'Player')
+      ensure_user(m.from_user.id, telegram_name)
       c.execute('UPDATE users SET phone=? WHERE uid=?', (phone, m.from_user.id))
     bot.send_message(m.chat.id, f'✅ ተመዝግበዋል! ({m.contact.phone_number})', reply_markup=menu_kb(m.from_user.id))
     bot.send_message(m.chat.id, '🎰 ጨዋታውን ለመክፈት ከታች ይጫኑ 👇', reply_markup=play_kb('🎮 Play Now'))
