@@ -648,13 +648,21 @@ function renderState(d) {
     var left = Math.max(0, Number(rotation.remaining || 0));
     var hh = Math.floor(left / 3600), mm = Math.floor((left % 3600) / 60), ss = left % 60;
     document.getElementById('financeCountdown').textContent = [hh,mm,ss].map(function(v){return String(v).padStart(2,'0')}).join(':');
-    document.getElementById('financeVerifyNote').textContent = rotation.verified ? '' : '⚠️ የሁለተኛው አድሚን ማረጋገጫ አልተገኘም';
+    document.getElementById('financeVerifyNote').textContent = rotation.verified ? '' : '⚠️ ሁለተኛው አድሚን እስኪረጋገጥ ድረስ ገቢ/ወጪ ወደ ዋናው አድሚን ይሄዳል';
   } else if (showAdminTools) {
     document.getElementById('financeActiveName').textContent = '—';
     document.getElementById('financeNextName').textContent = '—';
     document.getElementById('financeCountdown').textContent = '--:--:--';
     document.getElementById('financeVerifyNote').textContent = '⚠️ የተራ መጀመሪያ ሰዓት አልተገኘም';
   }
+  // Refresh the payment recipient on every state poll so a finance handover
+  // updates the visible account name and phone even while the deposit panel is open.
+  var payPhone = selectedDepositMethod === 'CBE Birr' ? (cfg.cbe_phone || '') : (cfg.telebirr_phone || '');
+  var payName = selectedDepositMethod === 'CBE Birr' ? (cfg.cbe_name || '') : (cfg.telebirr_name || '');
+  var payPhoneEl = document.getElementById('agPhone');
+  var payNameEl = document.getElementById('agName');
+  if (payPhoneEl) payPhoneEl.textContent = payPhone;
+  if (payNameEl) payNameEl.textContent = payName;
   var balance = Number(u.balance != null ? u.balance : (u.play_wallet || 0) + (u.win_wallet || 0));
   document.getElementById('hBal').textContent = balance.toFixed(2);
   document.getElementById('lWal').textContent = balance.toFixed(2);
