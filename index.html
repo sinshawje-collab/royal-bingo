@@ -294,6 +294,15 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
   </div>
 
   <section id="tab-bingo" class="tab on">
+    <div id="adminDashboard" style="display:none">
+      <div class="scard" style="border:1px solid #b88b35">
+        <div class="shd"><span>👑 ROYAL BINGO — ADMIN DASHBOARD</span><span style="color:#facc15;font-size:10px">ADMIN ONLY</span></div>
+        <p style="font-size:12px;color:var(--mut)">የጨዋታ ክፍሎችን ይከታተሉ። ቀጣይ ኳሶች ማየት ብቻ ነው፤ መቀየር፣ መዝለል ወይም በእጅ መጥራት አይቻልም።</p>
+        <div style="display:flex;gap:7px;margin-bottom:12px"><button class="btnp" id="admRoom10" onclick="setAdminStake(10)">10 ETB</button><button class="btnp" id="admRoom20" onclick="setAdminStake(20)">20 ETB</button><button class="btnp" id="admRoom50" onclick="setAdminStake(50)">50 ETB</button></div>
+        <div id="adminRoomStats" class="srow3"></div>
+      </div>
+      <div class="scard"><div class="shd"><span>🎱 ቀጣይ የሚወጡ ኳሶች</span><span style="font-size:10px;color:#facc15">READ ONLY</span></div><div id="adminNextBall" style="font-size:20px;font-weight:900;text-align:center;color:#facc15;margin:8px 0">—</div><div id="adminUpcomingBalls" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px"></div></div>
+    </div>
     <div id="lobbyView">
       <div id="lobbyHomeView">
       <div class="srow4">
@@ -661,6 +670,9 @@ function renderState(d) {
   if (d.is_admin) adminSessionConfirmed = true;
   var showAdminTools = adminSessionConfirmed;
   document.getElementById('adminBroadcast').style.display = showAdminTools ? 'block' : 'none';
+  var adminDashboard = document.getElementById('adminDashboard');
+  if (adminDashboard) adminDashboard.style.display = showAdminTools ? 'block' : 'none';
+  renderAdminDashboard(showAdminTools ? d.admin_rooms : null);
   var rotation = showAdminTools ? d.finance_rotation : null;
   var rotationBox = document.getElementById('financeRotationBox');
   if (rotationBox) rotationBox.style.display = showAdminTools ? 'block' : 'none';
@@ -839,6 +851,12 @@ function renderState(d) {
     }
   }
 
+  if (showAdminTools) {
+    document.getElementById('lobbyView').style.display = 'none';
+    document.getElementById('playView').style.display = 'none';
+    document.getElementById('adminBroadcast').style.display = 'block';
+  }
+
   var hl = document.getElementById('hList');
   if (!d.history.length) {
     hl.innerHTML = '<div class="scard" style="text-align:center;color:var(--mut)">ምንም ታሪክ የለም።</div>';
@@ -862,6 +880,19 @@ function renderState(d) {
   }
 }
 
+var adminStake = 10;
+function setAdminStake(value) { adminStake = Number(value); if (latestState) renderAdminDashboard(latestState.admin_rooms); }
+function renderAdminDashboard(data) {
+  if (!adminSessionConfirmed) return;
+  [10,20,50].forEach(function(v) { var b=document.getElementById('admRoom'+v); if(b){b.style.opacity=v===adminStake?'1':'.55';b.style.border=v===adminStake?'2px solid #facc15':'1px solid var(--bd)';} });
+  var room=data && data[String(adminStake)], stats=document.getElementById('adminRoomStats'), next=document.getElementById('adminNextBall'), list=document.getElementById('adminUpcomingBalls');
+  if(!room){stats.innerHTML='<div class="sbox">ROOM DATA UNAVAILABLE</div>';next.textContent='የክፍሉ መረጃ አልተገኘም';list.innerHTML='';return;}
+  stats.innerHTML='<div class="sbox"><div class="slbl">STATUS</div><div class="sval">'+room.phase+'</div></div><div class="sbox"><div class="slbl">PLAYERS</div><div class="sval">'+room.players+'</div></div><div class="sbox"><div class="slbl">PRIZE POOL</div><div class="sval c-gold">'+Number(room.derash||0).toFixed(2)+'</div></div>';
+  var upcoming=Array.isArray(room.upcoming)?room.upcoming:[];
+  next.textContent=room.phase==='PLAYING'&&upcoming.length?'NEXT: '+getLtr(upcoming[0])+' '+upcoming[0]:'ጨዋታው አልጀመረም / ቀጣይ ኳስ የለም';
+  list.innerHTML=upcoming.map(function(n,i){return '<div style="padding:9px 4px;text-align:center;border:1px solid var(--bd);border-radius:9px;background:var(--card2);font-weight:800"><span style="color:#facc15">'+getLtr(n)+'</span><br>'+n+(i===0?'<small style="display:block;color:#4ade80">NEXT</small>':'')+'</div>';}).join('');
+  if(!upcoming.length) list.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--mut);padding:12px">ጨዋታው ሲጀምር ኳሶቹ እዚህ ይታያሉ።</div>';
+}
 async function pollState() {
   if (!initData) {
     document.getElementById('appRoot').style.display = 'none';
