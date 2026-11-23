@@ -2,3 +2,4 @@ fastapi>=0.110,<1
 uvicorn[standard]>=0.27,<1
 pyTelegramBotAPI>=4.15,<5
 psycopg[binary]>=3.2,<4
+psycopg-pool>=3.2,<4
