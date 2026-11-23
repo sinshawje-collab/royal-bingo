@@ -466,7 +466,11 @@ function checkWinLocal(grid, markMap) {
 
 function renderState(d) {
   latestState = d;
-  var u = d.user, r = d.room, cfg = d.config;
+  var u = d.user || {}, r = d.room || {}, cfg = d.config || {};
+  // Keep the card picker visible even if an older/partial room payload is returned.
+  var takenCards = Array.isArray(r.taken_cards) ? r.taken_cards : [];
+  var myCards = Array.isArray(r.my_cards) ? r.my_cards : [];
+  var myBoards = r.my_boards && typeof r.my_boards === 'object' ? r.my_boards : {};
   document.getElementById('adminBroadcast').style.display = d.is_admin ? 'block' : 'none';
   var balance = Number(u.balance != null ? u.balance : (u.play_wallet || 0) + (u.win_wallet || 0));
   document.getElementById('hBal').textContent = balance.toFixed(2);
@@ -503,10 +507,10 @@ function renderState(d) {
       ban.textContent = '🔥 ጨዋታው በ ' + r.countdown + ' ሰከንድ ውስጥ ይጀምራል! ካርድ ይምረጡ';
     }
 
-    document.getElementById('selLbl').textContent = 'ካርዶችዎ፡ ' + r.my_cards.length + ' / 4';
+    document.getElementById('selLbl').textContent = 'ካርዶችዎ፡ ' + myCards.length + ' / 4';
     var tkMap = {}, myMap = {};
-    r.taken_cards.forEach(function(n) { tkMap[n] = true; });
-    r.my_cards.forEach(function(n) { myMap[n] = true; });
+    takenCards.forEach(function(n) { tkMap[n] = true; });
+    myCards.forEach(function(n) { myMap[n] = true; });
     var gh = '';
     for (var i = 1; i <= 400; i++) {
       var cls = myMap[i] ? 'sel' : (tkMap[i] ? 'taken' : '');
@@ -515,11 +519,11 @@ function renderState(d) {
     document.getElementById('selGrid').innerHTML = gh;
 
     var ms = document.getElementById('miniStrip');
-    if (!r.my_cards.length) {
+    if (!myCards.length) {
       ms.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;font-size:12px;color:var(--mut);background:var(--card);border-radius:11px;border:1px dashed var(--bd)">ካርድ ለመግዛት መጀመሪያ Wallet ላይ ብር ያስገቡና ከ 1–400 ቁጥር ይንኩ</div>';
     } else {
-      ms.innerHTML = r.my_cards.map(function(no) {
-        var g = r.my_boards[String(no)] || [];
+      ms.innerHTML = myCards.map(function(no) {
+        var g = myBoards[String(no)] || [];
         return '<div class="mboard"><div class="mbh"><span>BOARD ' + no + '</span><button class="mbx" onclick="buyCard(' + no + ')">✕</button></div><div class="mgrid">' + g.map(function(v) { return '<div class="mcell ' + (v === 'FREE' ? 'fr' : '') + '">' + (v === 'FREE' ? 'F' : v) + '</div>'; }).join('') + '</div></div>';
       }).join('');
     }
@@ -527,8 +531,8 @@ function renderState(d) {
     document.getElementById('lobbyView').style.display = 'none';
     document.getElementById('playView').style.display = 'block';
     var ptkMap = {}, pmyMap = {};
-    r.taken_cards.forEach(function(n) { ptkMap[n] = true; });
-    r.my_cards.forEach(function(n) { pmyMap[n] = true; });
+    takenCards.forEach(function(n) { ptkMap[n] = true; });
+    myCards.forEach(function(n) { pmyMap[n] = true; });
     var pgh = '';
     for (var pi = 1; pi <= 400; pi++) {
       var pcl = pmyMap[pi] ? 'sel' : (ptkMap[pi] ? 'taken' : '');
@@ -570,11 +574,11 @@ function renderState(d) {
     }).join('');
 
     var ac = document.getElementById('actCards');
-    if (!r.my_cards.length) {
+    if (!myCards.length) {
       ac.innerHTML = '<div class="spec"><div style="font-size:24px;margin-bottom:6px">👀</div><strong>በዚህ ዙር ካርድ አልገዙም።</strong><br/>ጨዋታው ሲጠናቀቅ በቀጣዩ ዙር ይሳተፉ።</div>';
     } else {
-      ac.innerHTML = r.my_cards.map(function(no) {
-        var g = r.my_boards[String(no)] || [];
+      ac.innerHTML = myCards.map(function(no) {
+        var g = myBoards[String(no)] || [];
         var mk = autoMark ? calMap : (manualMarks[no] || {});
         var wl = checkWinLocal(g, calMap);
         return '<div class="pcard ' + (wl ? 'win' : '') + '"><div class="ptop"><span>CARD #' + no + '</span><span>' + r.stake + ' ETB</span></div><div class="bhdr"><div class="ch cB">B</div><div class="ch cI">I</div><div class="ch cN">N</div><div class="ch cG">G</div><div class="ch cO">O</div></div><div class="pgrid">' + g.map(function(v) {
