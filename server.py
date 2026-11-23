@@ -556,9 +556,9 @@ ADMIN_REPLY_ACTIONS = {
 }
 
 def adm_kb():
-  # Telegram reply keyboard stays visible at the bottom of the admin chat.
-  kb = RKB(resize_keyboard=True, row_width=2, is_persistent=True)
-  # Mini App opens from the dedicated inline Web App button shown above the persistent admin controls.
+  # Keep the admin reply keyboard persistent and provide a direct Telegram Mini App launcher.
+  kb = RKB(resize_keyboard=True, row_width=2, is_persistent=True, one_time_keyboard=False)
+  kb.row(KBtn('📱 ወደ Mini App ግባ', web_app=WebAppInfo(url=APP_URL)))
   kb.row(KBtn('⏸️ ጨዋታዎችን አቁም' if not GAME_PAUSED else '▶️ ጨዋታዎችን ጀምር / ቀጥል'))
   kb.row(KBtn('📊 የጨዋታ ሁኔታ'))
   kb.row(KBtn('📊 ሪፖርትና ትርፍ'), KBtn('👥 ተጫዋቾች'))
