@@ -427,6 +427,14 @@ def menu_kb(uid=None):
 def play_kb(lbl='🎲 Play Royal Bingo'):
   kb = IKB(); kb.add(IBtn(lbl, web_app=WebAppInfo(url=APP_URL))); return kb
 
+def section_kb(section, action=None, label='📲 Open Royal Bingo'):
+  query = f'?section={section}'
+  if action:
+    query += f'&action={action}'
+  kb = IKB()
+  kb.add(IBtn(label, web_app=WebAppInfo(url=APP_URL + query)))
+  return kb
+
 def adm_kb():
   kb = IKB()
   kb.row(IBtn('📊 ሪፖርትና ትርፍ', callback_data='adm_stats'), IBtn('👥 ተጫዋቾች', callback_data='adm_users'))
@@ -531,19 +539,18 @@ if bot:
 
   @bot.message_handler(commands=['play'])
   @bot.message_handler(func=lambda m: m.text in ('🎮 Play Royal Bingo', '🎮 Play'))
-  def c_play(m): bot.send_message(m.chat.id, 'Good luck Royal Bingo 🍀', reply_markup=play_kb('🎲 Play Royal Bingo'))
+  def c_play(m): bot.send_message(m.chat.id, '🎮 ጨዋታውን ለመክፈት ከታች ይጫኑ።', reply_markup=section_kb('bingo', label='🎮 Play Royal Bingo'))
 
   @bot.message_handler(commands=['balance'])
   @bot.message_handler(func=lambda m: m.text in ('💳 ባላንስ (Balance)', '💳 Balance'))
   def c_bal(m):
     u = ensure_user(m.from_user.id, m.from_user.first_name or 'Player')
-    bot.send_message(m.chat.id, f'💰 ጠቅላላ ባላንስ: {u["play_wallet"]+u["win_wallet"]:.2f} ETB', reply_markup=play_kb('🎲 Play'))
+    bot.send_message(m.chat.id, f'💰 ጠቅላላ ባላንስ: {u["play_wallet"]+u["win_wallet"]:.2f} ETB\\n👛 የWallet ዝርዝርን ለማየት ከታች ይጫኑ።', reply_markup=section_kb('wallet', label='💳 Open Wallet'))
 
   @bot.message_handler(commands=['deposit'])
   @bot.message_handler(func=lambda m: m.text in ('💰 ገቢ (Deposit)', '💳 Deposit'))
   def c_dep(m):
-    kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='dep_TeleBirr'), IBtn('🏦 CBE Birr', callback_data='dep_CBE'))
-    bot.send_message(m.chat.id, '💳 የክፍያ አማራጭ ይምረጡ፦', reply_markup=kb)
+    bot.send_message(m.chat.id, '💳 የገቢ ገጹን ለመክፈት ከታች ይጫኑ።', reply_markup=section_kb('wallet', 'deposit', '💳 Deposit Now'))
 
   @bot.callback_query_handler(func=lambda c: c.data in ('dep_TeleBirr', 'dep_CBE'))
   def cb_dep(call):
@@ -569,8 +576,7 @@ if bot:
   @bot.message_handler(commands=['withdraw'])
   @bot.message_handler(func=lambda m: m.text in ('💸 ወጪ (Withdraw)', '💸 Withdraw'))
   def c_wd(m):
-    kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='wd_TeleBirr'), IBtn('🏦 CBE Birr', callback_data='wd_CBE'))
-    bot.send_message(m.chat.id, '💸 ወደ የትኛው አካውንት ማውጣት ይፈልጋሉ?', reply_markup=kb)
+    bot.send_message(m.chat.id, '💸 የወጪ ገጹን ለመክፈት ከታች ይጫኑ።', reply_markup=section_kb('wallet', 'withdraw', '💸 Withdraw Now'))
 
   @bot.callback_query_handler(func=lambda c: c.data in ('wd_TeleBirr', 'wd_CBE'))
   def cb_wd(call):
@@ -757,7 +763,7 @@ if bot:
 
   @bot.message_handler(func=lambda m: m.text == '🔄 Transfer')
   def c_transfer(m):
-    bot.register_next_step_handler(bot.send_message(m.chat.id, '🔄 ወደ ሚልኩለት ተጫዋች የተመዘገበ ስልክ ቁጥር (09...) ያስገቡ፦'), s_transfer_phone)
+    bot.send_message(m.chat.id, '🔄 የገንዘብ ማስተላለፊያ ገጹን ለመክፈት ከታች ይጫኑ።', reply_markup=section_kb('wallet', 'transfer', '🔄 Transfer Now'))
 
   def s_transfer_phone(m):
     phone = normalize_phone((m.text or '').strip())
