@@ -706,7 +706,57 @@ if bot:
 
   @bot.message_handler(func=lambda m: m.text == '🔄 Transfer')
   def c_transfer(m):
-    bot.send_message(m.chat.id, '🔄 የገንዘብ ማስተላለፍን ከRoyal Bingo App ውስጥ ይጠቀሙ።', reply_markup=play_kb('🔄 Open Wallet'))
+    bot.register_next_step_handler(bot.send_message(m.chat.id, '🔄 ወደ ሚልኩለት ተጫዋች የተመዘገበ ስልክ ቁጥር (09...) ያስገቡ፦'), s_transfer_phone)
+
+  def s_transfer_phone(m):
+    phone = normalize_phone((m.text or '').strip())
+    if not phone or len(re.sub(r'\\D', '', phone)) != 12:
+      return bot.register_next_step_handler(bot.reply_to(m, '❌ ትክክለኛ የስልክ ቁጥር (09...) ያስገቡ።'), s_transfer_phone)
+    with get_db() as c:
+      matches = c.execute('SELECT uid, name FROM users WHERE phone=?', (phone,)).fetchall()
+    if len(matches) != 1:
+      return bot.reply_to(m, '❌ ይህ ቁጥር የተመዘገበ ተጫዋች አልተገኘም ወይም ከአንድ ተጫዋች ጋር ተያይዟል።', reply_markup=menu_kb(m.from_user.id))
+    if int(matches[0]['uid']) == int(m.from_user.id):
+      return bot.register_next_step_handler(bot.reply_to(m, '❌ ወደ ራስዎ መላክ አይችሉም። የሌላ ተጫዋች ቁጥር ያስገቡ፦'), s_transfer_phone)
+    bot.register_next_step_handler(bot.send_message(m.chat.id, f'👤 ተቀባይ: {matches[0]["name"]}\\n📱 {phone}\\n\\n💵 የሚልኩትን መጠን ETB ያስገቡ (ዝቅተኛ 1 ETB)፦'), s_transfer_amount, phone, matches[0]['name'])
+
+  def s_transfer_amount(m, phone, recipient_name):
+    try:
+      amt = round(float((m.text or '').strip()), 2)
+      if not math.isfinite(amt) or amt < 1 or amt > 100000: raise ValueError()
+    except Exception:
+      return bot.register_next_step_handler(bot.reply_to(m, '❌ 1–100,000 ETB መካከል ትክክለኛ መጠን ያስገቡ፦'), s_transfer_amount, phone, recipient_name)
+    with get_db() as c:
+      available = available_wallet(c, m.from_user.id)
+    if available < amt:
+      return bot.reply_to(m, f'❌ በቂ ባላንስ የለዎትም። የሚገኘው {available:.2f} ETB ነው።', reply_markup=menu_kb(m.from_user.id))
+    bot.register_next_step_handler(bot.send_message(m.chat.id, f'⚠️ እባክዎ ያረጋግጡ\\n👤 ተቀባይ: {recipient_name}\\n📱 {phone}\\n💵 መጠን: {amt:.2f} ETB\\n\\nለመላክ YES ይጻፉ፤ ለመሰረዝ NO ይጻፉ።'), s_transfer_confirm, phone, amt, recipient_name)
+
+  def s_transfer_confirm(m, phone, amt, recipient_name):
+    if (m.text or '').strip().upper() != 'YES':
+      return bot.reply_to(m, 'ℹ️ ማስተላለፉ ተሰርዟል።', reply_markup=menu_kb(m.from_user.id))
+    try:
+      with get_db() as c:
+        c.execute('BEGIN IMMEDIATE')
+        c.execute('SELECT uid FROM users WHERE uid=? FOR UPDATE', (m.from_user.id,))
+        matches = c.execute('SELECT uid, name FROM users WHERE phone=?', (phone,)).fetchall()
+        if len(matches) != 1 or int(matches[0]['uid']) == int(m.from_user.id):
+          return bot.reply_to(m, '❌ የተቀባዩ መረጃ ተቀይሯል። እንደገና ይጀምሩ።', reply_markup=menu_kb(m.from_user.id))
+        receiver = matches[0]
+        available = available_wallet(c, m.from_user.id)
+        if available < amt:
+          return bot.reply_to(m, f'❌ በቂ ባላንስ የለዎትም። የሚገኘው {available:.2f} ETB ነው።', reply_markup=menu_kb(m.from_user.id))
+        sender = c.execute('SELECT name FROM users WHERE uid=?', (m.from_user.id,)).fetchone()
+        c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)-? WHERE uid=?', (amt, m.from_user.id))
+        c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+? WHERE uid=?', (amt, receiver['uid']))
+        add_tx(c, m.from_user.id, '↗️', f'ለ {receiver["name"]} የተላከ ብር', -amt)
+        add_tx(c, receiver['uid'], '↙️', f'ከ {sender["name"]} የተቀበለ ብር', amt)
+      bot.reply_to(m, f'✅ {amt:.2f} ETB ለ {recipient_name} ተልኳል።', reply_markup=menu_kb(m.from_user.id))
+      try: bot.send_message(int(receiver['uid']), f'🎉 {sender["name"]} ከእርስዎ ጋር {amt:.2f} ETB አጋርቷል።')
+      except Exception: pass
+    except Exception as exc:
+      print('Player transfer failed:', type(exc).__name__, str(exc))
+      bot.reply_to(m, '❌ ማስተላለፉ አልተሳካም። እባክዎ እንደገና ይሞክሩ።', reply_markup=menu_kb(m.from_user.id))
 
   @bot.message_handler(func=lambda m: m.text == '📢 Join Channel')
   def c_channel(m):
