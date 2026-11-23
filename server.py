@@ -318,12 +318,15 @@ def admin_ids():
 def finance_admin_ids(now=None):
   owner_id = int(ADMIN_ID) if ADMIN_ID else None
   second_id = bereket_admin_id()
-  if not owner_id or not second_id:
+  if not owner_id:
     return []
+  # Never strand deposits/withdrawals if the second admin has not verified yet.
+  if not second_id:
+    return [owner_id]
   with get_db() as c:
     row = c.execute('SELECT start_at FROM admin_rotation WHERE id=1').fetchone()
   if not row:
-    return []
+    return [owner_id]
   elapsed_slots = max(0, int((int(now or time.time()) - int(row['start_at'])) // ADMIN_ROTATION_SECONDS))
   return [second_id if elapsed_slots % 2 == 0 else owner_id]
 
@@ -334,39 +337,48 @@ def finance_rotation_status(now=None):
   with get_db() as db:
     row = db.execute('SELECT start_at FROM admin_rotation WHERE id=1').fetchone()
   if not row or not owner_id:
-    return {'configured': False, 'verified': False, 'active_name': 'Not configured', 'next_name': 'Not configured', 'remaining': 0}
+    return {'configured': False, 'verified': False, 'active_name': 'Not configured', 'next_name': 'Not configured', 'remaining': 0, 'active_id': None}
+  if not second_id:
+    return {
+      'configured': True, 'verified': False,
+      'active_name': 'SINSHAW JEMANEH ESHETE',
+      'next_name': 'BEREKET DAGNACHEW ALEMU (verification required)',
+      'remaining': 0, 'active_id': owner_id
+    }
   elapsed = max(0, now - int(row['start_at']))
   slot = elapsed // ADMIN_ROTATION_SECONDS
   remaining = ADMIN_ROTATION_SECONDS - (elapsed % ADMIN_ROTATION_SECONDS)
   second_active = slot % 2 == 0
+  active_id = second_id if second_active else owner_id
+  active_name = SECOND_ADMIN_NAME if second_active else 'SINSHAW JEMANEH ESHETE'
+  active_phone = SECOND_ADMIN_PHONE if second_active else os.environ.get('TELEBIRR_PHONE', '0941882333')
   return {
-    'configured': True,
-    'verified': bool(second_id),
-    'active_name': SECOND_ADMIN_NAME if second_active else 'SINSHAW JEMANEH ESHETE',
+    'configured': True, 'verified': True,
+    'active_name': active_name, 'active_phone': active_phone,
     'next_name': 'SINSHAW JEMANEH ESHETE' if second_active else SECOND_ADMIN_NAME,
-    'remaining': int(remaining),
-    'active_id': (second_id if second_active else owner_id) if second_id else None
+    'remaining': int(remaining), 'active_id': active_id
   }
 
 def active_payment_accounts():
-  """Return the payment destination for the finance admin currently on duty."""
+  """Return payment destination and active administrator identity from the same rotation state."""
   active_ids = finance_admin_ids()
   active_id = active_ids[0] if active_ids else (int(ADMIN_ID) if ADMIN_ID else None)
   second_id = bereket_admin_id()
   if second_id and active_id == second_id:
-    name, phone = 'BEREKET DAGNACHEW ALEMU', '0932760267'
-  else:
-    tele_name = os.environ.get('TELEBIRR_NAME', 'SINSHAW JEMANEH ESHETE')
-    tele_phone = os.environ.get('TELEBIRR_PHONE', '0941882333')
-    cbe_name = os.environ.get('CBE_BIRR_NAME', 'Sinshaw Jemaneh Eshete')
-    cbe_phone = os.environ.get('CBE_BIRR_PHONE', '0941882333')
+    name, phone = SECOND_ADMIN_NAME, SECOND_ADMIN_PHONE
     return {
-      'telebirr_name': tele_name, 'telebirr_phone': tele_phone,
-      'cbe_name': cbe_name, 'cbe_phone': cbe_phone
+      'telebirr_name': name, 'telebirr_phone': phone,
+      'cbe_name': name, 'cbe_phone': phone,
+      'active_admin_name': name, 'active_admin_phone': phone
     }
+  tele_name = os.environ.get('TELEBIRR_NAME', 'SINSHAW JEMANEH ESHETE')
+  tele_phone = os.environ.get('TELEBIRR_PHONE', '0941882333')
+  cbe_name = os.environ.get('CBE_BIRR_NAME', 'Sinshaw Jemaneh Eshete')
+  cbe_phone = os.environ.get('CBE_BIRR_PHONE', '0941882333')
   return {
-    'telebirr_name': name, 'telebirr_phone': phone,
-    'cbe_name': name, 'cbe_phone': phone
+    'telebirr_name': tele_name, 'telebirr_phone': tele_phone,
+    'cbe_name': cbe_name, 'cbe_phone': cbe_phone,
+    'active_admin_name': tele_name, 'active_admin_phone': tele_phone
   }
 
 def switch_finance_turn():
