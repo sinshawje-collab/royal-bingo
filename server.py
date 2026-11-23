@@ -320,6 +320,21 @@ def finance_admin_ids(now=None):
   elapsed_slots = max(0, int((int(now or time.time()) - int(row['start_at'])) // ADMIN_ROTATION_SECONDS))
   return [second_id if elapsed_slots % 2 == 0 else owner_id]
 
+def active_payment_accounts():
+  """Return the payment destination for the finance admin currently on duty."""
+  active_ids = finance_admin_ids()
+  active_id = active_ids[0] if active_ids else (int(ADMIN_ID) if ADMIN_ID else None)
+  second_id = bereket_admin_id()
+  if second_id and active_id == second_id:
+    name, phone = 'BEREKET DAGNACHEW ALEMU', '0932760267'
+  else:
+    name = os.environ.get('TELEBIRR_NAME', 'SINSHAW JEMANEH ESHETE')
+    phone = os.environ.get('TELEBIRR_PHONE', '0941882333')
+  return {
+    'telebirr_name': name, 'telebirr_phone': phone,
+    'cbe_name': name, 'cbe_phone': phone
+  }
+
 def is_finance_admin(uid):
   try:
     return int(uid) in finance_admin_ids()
@@ -456,7 +471,8 @@ if bot:
       if not math.isfinite(amt) or amt < 20 or amt > 1000000:
         return bot.reply_to(m, '❌ 20 ETB እስከ 1,000,000 ETB ያለ ትክክለኛ መጠን ያስገቡ።')
     except Exception: return bot.reply_to(m, '❌ ትክክለኛ ቁጥር ያስገቡ።')
-    bot.register_next_step_handler(bot.send_message(m.chat.id, f'🏦 {md}\n👤 {TB_NAME}\n📱 {TB_PHONE}\n💵 {amt:.2f} ETB\n\nከላኩ በኋላ የSMS Transaction ID ይላኩ 👇'), s_dep_tx, amt, md)
+    pay = active_payment_accounts()
+     bot.register_next_step_handler(bot.send_message(m.chat.id, f"🏦 {md}\n👤 {pay['telebirr_name'] if md == 'TeleBirr' else pay['cbe_name']}\n📱 {pay['telebirr_phone'] if md == 'TeleBirr' else pay['cbe_phone']}\n💵 {amt:.2f} ETB\n\nከላኩ በኋላ የSMS Transaction ID ይላኩ 👇"), s_dep_tx, amt, md)
 
   def s_dep_tx(m, amt, md):
     tx = (m.text or '').strip()
@@ -699,7 +715,7 @@ def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
     txs = sorted(txs + pending, key=lambda x: x['created_at'], reverse=True)[:25]
     top = [dict(x) for x in c.execute('SELECT name,total_won FROM users WHERE total_won>0 ORDER BY total_won DESC LIMIT 10').fetchall()]
   return {'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': is_adm(u['uid']),
-          'config': {'telebirr_name': TB_NAME, 'telebirr_phone': TB_PHONE, 'cbe_name': CBE_NAME, 'cbe_phone': CBE_PHONE, 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
+          'config': {**active_payment_accounts(), 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
 
 @app.post('/api/buy_card')
 async def api_buy(req: Request, x_tg_init_data: str = Header(default='')):
