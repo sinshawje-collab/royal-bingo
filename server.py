@@ -650,7 +650,7 @@ if bot:
     if finance_service_closed_for(call.from_user.id):
       return bot.answer_callback_query(call.id, finance_closed_bot_message(), show_alert=True)
     bot.answer_callback_query(call.id); md = call.data.split('_')[1]
-    bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💵 በ {md} የሚያስገቡትን መጠን ይጻፉ (ዝቅተኛ 20 ETB)፦'), s_dep_amt, md)
+    bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💵 በ {"CBE Birr" if md == "CBE" else md} የሚያስገቡትን መጠን ይጻፉ (ዝቅተኛ 20 ETB)፦'), s_dep_amt, md)
 
   def s_dep_amt(m, md):
     if dispatch_menu_from_step(m): return
@@ -661,7 +661,7 @@ if bot:
         return bot.reply_to(m, '❌ 20 ETB እስከ 1,000,000 ETB ያለ ትክክለኛ መጠን ያስገቡ።')
     except Exception: return bot.reply_to(m, '❌ ትክክለኛ ቁጥር ያስገቡ።')
     pay = active_payment_accounts()
-    bot.register_next_step_handler(bot.send_message(m.chat.id, f"🏦 {md}\n👤 {pay['telebirr_name'] if md == 'TeleBirr' else pay['cbe_name']}\n📱 {pay['telebirr_phone'] if md == 'TeleBirr' else pay['cbe_phone']}\n💵 {amt:.2f} ETB\n\nከላኩ በኋላ የSMS Transaction ID ይላኩ 👇"), s_dep_tx, amt, md)
+    bot.register_next_step_handler(bot.send_message(m.chat.id, f"🏦 {'CBE Birr' if md == 'CBE' else md}\n👤 {pay['telebirr_name'] if md == 'TeleBirr' else pay['cbe_name']}\n📱 {pay['telebirr_phone'] if md == 'TeleBirr' else pay['cbe_phone']}\n💵 {amt:.2f} ETB\n\nከላኩ በኋላ የSMS Transaction ID ይላኩ 👇"), s_dep_tx, amt, md)
 
   def s_dep_tx(m, amt, md):
     if dispatch_menu_from_step(m): return
