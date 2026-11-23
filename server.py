@@ -460,11 +460,21 @@ if bot:
   @bot.message_handler(commands=['myid'])
   def c_myid(m): bot.reply_to(m, f'🆔 የአንተ Telegram ID፦ `{m.from_user.id}`', parse_mode='Markdown')
 
-  @bot.message_handler(commands=['admin'])
-  @bot.message_handler(func=lambda m: bool(m.text) and ('Admin Panel' in m.text or m.text.strip() == '👑 Admin'))
+  @bot.message_handler(commands=['admin', 'adminpanel'])
+  @bot.message_handler(func=lambda m: bool(m.text) and m.text.strip().replace('👑', '').strip().lower() in ('admin panel', 'admin'))
   def c_admin(m):
-    if not is_adm(m.from_user.id): return bot.reply_to(m, '⛔ ለአድሚን ብቻ!')
-    bot.send_message(m.chat.id, '👑 ROYAL BINGO — የአድሚን መቆጣጠሪያ', reply_markup=adm_kb())
+    uid = getattr(getattr(m, 'from_user', None), 'id', None)
+    print(f'Admin panel requested: uid={uid}, chat={getattr(getattr(m, "chat", None), "id", None)}')
+    try:
+      if not is_adm(uid):
+        return bot.reply_to(m, '⛔ ይህ መቆጣጠሪያ ለተፈቀደላቸው አድሚኖች ብቻ ነው። የTelegram ID ለማየት /myid ይጻፉ።')
+      bot.send_message(m.chat.id, '👑 ROYAL BINGO — የአድሚን መቆጣጠሪያ', reply_markup=adm_kb())
+    except Exception as exc:
+      print(f'Admin panel open failed for uid={uid}: {type(exc).__name__}: {exc}')
+      try:
+        bot.send_message(m.chat.id, '❌ Admin Panel ሲከፈት ስህተት ተፈጥሯል። እባክዎ /admin እንደገና ይሞክሩ።')
+      except Exception:
+        pass
 
   @bot.message_handler(commands=['start'])
   def c_start(m):
