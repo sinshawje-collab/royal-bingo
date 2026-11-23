@@ -801,7 +801,10 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
       player_phone = u.get('phone') or 'Not registered'
       msg = f'🔔 አዲስ የወጪ ጥያቄ!\\n\\n🆔 Request #{rid}\\n👤 {u["name"]}\\n🆔 Player ID: {player_phone}\\n💵 {amt:.2f} ETB\\n🏦 የወጪ ዘዴ: {method}\\n📱 የተቀባይ ቁጥር: {ph}\\n⏳ ሁኔታ: PENDING'
       for aid in aids:
-        try: bot.send_message(aid, msg, reply_markup=kb)
+        try:
+          bot.send_message(aid, msg, reply_markup=kb)
+        except Exception:
+          pass
   except Exception:
     pass
   return {'ok': True}
