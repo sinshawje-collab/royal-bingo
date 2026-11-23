@@ -472,7 +472,7 @@ if bot:
         return bot.reply_to(m, '❌ 20 ETB እስከ 1,000,000 ETB ያለ ትክክለኛ መጠን ያስገቡ።')
     except Exception: return bot.reply_to(m, '❌ ትክክለኛ ቁጥር ያስገቡ።')
     pay = active_payment_accounts()
-     bot.register_next_step_handler(bot.send_message(m.chat.id, f"🏦 {md}\n👤 {pay['telebirr_name'] if md == 'TeleBirr' else pay['cbe_name']}\n📱 {pay['telebirr_phone'] if md == 'TeleBirr' else pay['cbe_phone']}\n💵 {amt:.2f} ETB\n\nከላኩ በኋላ የSMS Transaction ID ይላኩ 👇"), s_dep_tx, amt, md)
+    bot.register_next_step_handler(bot.send_message(m.chat.id, f"🏦 {md}\n👤 {pay['telebirr_name'] if md == 'TeleBirr' else pay['cbe_name']}\n📱 {pay['telebirr_phone'] if md == 'TeleBirr' else pay['cbe_phone']}\n💵 {amt:.2f} ETB\n\nከላኩ በኋላ የSMS Transaction ID ይላኩ 👇"), s_dep_tx, amt, md)
 
   def s_dep_tx(m, amt, md):
     tx = (m.text or '').strip()
