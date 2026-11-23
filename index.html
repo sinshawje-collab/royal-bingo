@@ -148,6 +148,61 @@ body.light .status-banner{color:#1d4ed8}
 .toast{position:fixed;top:62px;left:50%;transform:translateX(-50%);z-index:100;background:#0f172a;color:#fff;border:1px solid var(--bdg);padding:9px 16px;border-radius:99px;font-size:12.5px;font-weight:700;display:none;max-width:90%;text-align:center}
 .toast.on{display:block}
 .auth-err{padding:40px 20px;text-align:center;line-height:1.7}
+
+/* Royal Bingo neon-purple visual refresh */
+:root{
+ --bg:#08031b;--card:#100b2a;--card2:#171039;--el:#211650;
+ --bd:rgba(167,139,250,.25);--bdg:rgba(168,85,247,.72);
+ --txt:#f8f5ff;--mut:#c4b5fd;--dim:#8b7bbd;
+ --gold:#f59e0b;--gold2:#ffd84d;
+ --ggrad:linear-gradient(135deg,#ffe45c 0%,#ffb800 52%,#e87908 100%);
+ --nav:rgba(9,4,29,.97);--sh:0 5px 18px rgba(97,45,190,.22);
+}
+html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#070316 75%);background-attachment:fixed}
+.app{max-width:480px;padding:0 0 82px}
+.hero-banner{
+ height:150px;position:relative;overflow:hidden;display:flex;flex-direction:column;
+ align-items:center;justify-content:center;text-align:center;margin:0 0 8px;
+ background:radial-gradient(ellipse at 50% 72%,rgba(255,171,20,.28),transparent 35%),
+ radial-gradient(ellipse at 50% 45%,#4c168c 0%,#180735 53%,#08031b 100%);
+ border-bottom:2px solid #7c3aed;box-shadow:0 8px 26px rgba(124,58,237,.28);
+}
+.hero-banner:before,.hero-banner:after{content:"";position:absolute;width:180px;height:180px;border:1px solid rgba(196,181,253,.25);border-radius:50%;top:14px}
+.hero-banner:before{left:-95px}.hero-banner:after{right:-95px}
+.hero-crown{font-size:46px;line-height:1;filter:drop-shadow(0 0 12px #fbbf24);z-index:1}
+.hero-name{font-family:Georgia,serif;font-style:italic;font-weight:900;font-size:clamp(34px,9vw,48px);line-height:1.1;letter-spacing:-1.4px;color:#ffe36e;text-shadow:2px 3px 0 #8a3b05,0 0 9px #ffb000,0 0 22px #f97316;z-index:1}
+.hero-sub{font-size:9px;letter-spacing:4px;color:#e9d5ff;font-weight:800;margin-top:4px;z-index:1}
+.hero-orb{position:absolute;border-radius:50%;width:34px;height:34px;background:radial-gradient(circle at 30% 25%,#e9d5ff,#7c3aed 55%,#16072d);border:2px solid #c4b5fd;box-shadow:0 0 15px #a855f7}
+.hero-orb.one{left:12%;top:48px}.hero-orb.two{right:13%;top:52px}.hero-orb.three{right:28%;top:12px;width:23px;height:23px}
+.hdr{position:relative;top:auto;margin:0 12px 10px;padding:9px 10px;border:1px solid #7544c8;border-radius:18px;background:linear-gradient(110deg,rgba(24,10,59,.98),rgba(12,7,34,.98));box-shadow:0 0 15px rgba(124,58,237,.25)}
+.badge{box-shadow:0 0 12px rgba(245,158,11,.45)}
+.btitle{font-size:17px;color:#ffd84d}
+.live-pill{font-size:9px;padding:3px 8px}
+.tab{padding:5px 12px 16px}
+.sbox{background:linear-gradient(150deg,#171039,#0d0925);border:1px solid #59419a;border-radius:16px;padding:10px 4px;box-shadow:0 4px 14px rgba(0,0,0,.24)}
+.slbl{font-size:10px;color:#c4b5fd}
+.sval{font-size:17px}
+.status-banner{background:linear-gradient(100deg,rgba(124,58,237,.23),rgba(88,28,135,.28));border:1px solid #a855f7;border-radius:15px;color:#f5d0fe;padding:12px 9px;box-shadow:0 0 12px rgba(168,85,247,.2)}
+.status-banner.counting{background:linear-gradient(100deg,rgba(245,158,11,.22),rgba(124,58,237,.22));color:#ffe58a}
+.sbar{background:linear-gradient(110deg,#171039,#0d0925);border:1px solid #59419a;border-radius:15px;padding:8px}
+.spill{border-radius:12px;padding:9px 12px;font-size:12px;background:#171039;border-color:#59419a;color:#e9ddff}
+.spill.on{box-shadow:0 0 12px rgba(251,191,36,.35)}
+.apill{border-radius:12px;padding:9px 10px;font-size:11px}
+.lctrl{margin:12px 0 8px}
+.scnt{font-size:14px;color:#ffd84d}
+.qbtn{border-radius:12px;background:#1b103c;color:#ffe16a;border-color:#a855f7;padding:9px 11px}
+.leg{color:#d8ccf5;gap:12px;font-size:10px}
+.gwrap{background:linear-gradient(145deg,#130d31,#09051e);border:1px solid #59419a;border-radius:17px;padding:7px;max-height:none;overflow:visible;box-shadow:0 0 16px rgba(124,58,237,.18)}
+.cgrid{grid-template-columns:repeat(20,minmax(0,1fr));gap:3px}
+.gnum{aspect-ratio:1;border-radius:5px;font-size:clamp(7px,2.1vw,10px);background:#1b1638;border:1px solid rgba(167,139,250,.18);color:#e9e4ff;min-width:0}
+.gnum.taken{background:rgba(239,68,68,.28);border-color:rgba(248,113,113,.45);color:#fecaca}
+.gnum.sel{background:linear-gradient(135deg,#ffe45c,#f59e0b);color:#251000;border-color:#fff0a6;box-shadow:0 0 7px rgba(251,191,36,.45)}
+.pstrip{margin-top:9px}
+.bnav{background:rgba(10,5,31,.98);border-top:1px solid #6d45b4;box-shadow:0 -5px 18px rgba(0,0,0,.3);padding:8px 4px calc(7px + env(safe-area-inset-bottom))}
+.nbtn{font-size:10px;color:#c4b5fd}.nbtn .ni{font-size:21px}.nbtn.on{color:#ffdc52;background:linear-gradient(135deg,rgba(245,158,11,.22),rgba(124,58,237,.18));border:1px solid rgba(245,158,11,.35)}
+.scard,.hitem,.rrow{background:linear-gradient(145deg,#171039,#0d0925);border-color:#59419a}
+@media(max-width:360px){.hero-banner{height:128px}.cgrid{gap:2px}.gnum{font-size:7px}.hdr{margin-left:8px;margin-right:8px}}
+
 </style>
 </head>
 <body>
@@ -159,6 +214,7 @@ body.light .status-banner{color:#1d4ed8}
 </div>
 
 <div id="appRoot" class="app">
+  <div class="hero-banner" aria-label="Royal Bingo"><span class="hero-orb one"></span><span class="hero-orb two"></span><span class="hero-orb three"></span><div class="hero-crown">👑</div><div class="hero-name">Royal Bingo</div><div class="hero-sub">PLAY • WIN • CELEBRATE</div></div>
   <header class="hdr">
     <div class="brand">
       <div class="badge" style="width:54px;height:54px;min-width:54px;flex:0 0 54px;border-radius:12px;overflow:hidden;background:#f59e0b;border:1px solid #fbbf24;box-shadow:0 0 14px rgba(245,158,11,.5);padding:0;display:block"><img src="/assets/royal-bingo-logo.svg?v=3" alt="Royal Bingo official logo" style="width:100%;height:100%;object-fit:cover;display:block"></div>
