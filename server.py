@@ -433,10 +433,12 @@ def active_payment_accounts():
       'cbe_name': name, 'cbe_phone': phone,
       'active_admin_name': name, 'active_admin_phone': phone
     }
-  tele_name = os.environ.get('TELEBIRR_NAME', 'SINSHAW JEMANEH ESHETE')
-  tele_phone = os.environ.get('TELEBIRR_PHONE', '0941882333')
-  cbe_name = os.environ.get('CBE_BIRR_NAME', 'Sinshaw Jemaneh Eshete')
-  cbe_phone = os.environ.get('CBE_BIRR_PHONE', '0941882333')
+  # The primary owner's payment details must not inherit stale Bereket values
+  # from Render environment variables after a finance-turn handover.
+  tele_name = 'SINSHAW JEMANEH ESHETE'
+  tele_phone = '0941882333'
+  cbe_name = 'Sinshaw Jemaneh Eshete'
+  cbe_phone = '0941882333'
   return {
     'telebirr_name': tele_name, 'telebirr_phone': tele_phone,
     'cbe_name': cbe_name, 'cbe_phone': cbe_phone,
