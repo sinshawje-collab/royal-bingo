@@ -412,6 +412,19 @@ if bot:
     bot.send_message(m.chat.id, f'✅ ተመዝግበዋል! ({m.contact.phone_number})', reply_markup=menu_kb(m.from_user.id))
     bot.send_message(m.chat.id, '🎰 ጨዋታውን ለመክፈት ከታች ይጫኑ 👇', reply_markup=play_kb('🎮 Play Now'))
 
+  @bot.message_handler(commands=['takeover'])
+  def c_takeover(m):
+    second_id = bereket_admin_id()
+    if not second_id or int(m.from_user.id) != second_id:
+      return bot.reply_to(m, '❌ የአድሚን ማረጋገጫ አልተሟላም። ስምና የራስዎን ስልክ በContact ያረጋግጡ።')
+    started = int(time.time())
+    with get_db() as c:
+      c.execute('UPDATE admin_rotation SET start_at=? WHERE id=1', (started,))
+    bot.reply_to(m, '✅ የገቢና ወጪ ተራው አሁን ወደ Bereket ተቀይሯል። ከዚህ ሰዓት ጀምሮ 6 ሰዓት ይቆያል። ከዚያ ወደ ዋናው Admin ይመለሳል።')
+    if ADMIN_ID:
+      try: bot.send_message(int(ADMIN_ID), '🔔 Bereket የ6 ሰዓት የገቢና ወጪ ተራውን ጀምሯል።')
+      except Exception: pass
+
   @bot.message_handler(commands=['play'])
   @bot.message_handler(func=lambda m: m.text == '🎮 Play Royal Bingo')
   def c_play(m): bot.send_message(m.chat.id, 'Good luck Royal Bingo 🍀', reply_markup=play_kb('🎲 Play Royal Bingo'))
