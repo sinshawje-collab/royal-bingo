@@ -673,7 +673,7 @@ if bot:
 
   @bot.message_handler(func=lambda m: m.text == '📢 Join Channel')
   def c_channel(m):
-    channel_url = os.environ.get('CHANNEL_URL', '').strip()
+    channel_url = os.environ.get('CHANNEL_URL', 'https://t.me/royalbingo99').strip()
     if channel_url.startswith(('https://t.me/', 'http://t.me/')):
       kb = IKB(); kb.add(IBtn('📢 Join Royal Bingo Channel', url=channel_url))
       bot.send_message(m.chat.id, '📢 የRoyal Bingo ቻናላችንን ለመቀላቀል ከታች ይጫኑ።', reply_markup=kb)
