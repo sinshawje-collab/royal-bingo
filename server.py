@@ -302,8 +302,9 @@ def bereket_admin_id():
   with get_db() as c:
     rows = c.execute('SELECT uid, name, phone FROM users WHERE phone IS NOT NULL').fetchall()
   for row in rows:
-    if (normalize_person_name(row['name']) == normalize_person_name(SECOND_ADMIN_NAME)
-        and normalize_phone(row['phone']) == normalize_phone(SECOND_ADMIN_PHONE)):
+    # The phone number is saved only after Telegram's own-contact verification.
+    # Do not depend on the mutable Telegram profile/display name for admin identity.
+    if normalize_phone(row['phone']) == normalize_phone(SECOND_ADMIN_PHONE):
       return int(row['uid'])
   return None
 
