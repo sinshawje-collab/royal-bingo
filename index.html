@@ -731,8 +731,7 @@ function renderState(d) {
     if (gridSignature !== cardGridSignature) {
       var gh = '';
       for (var i = 1; i <= 400; i++) {
-        var cls = myMap[i] ? 'sel' : (tkMap[i] ? 'taken' : '');
-        if (cardActionPending[i]) cls += ' pending ' + (cardActionOptimistic[i] ? 'optimistic-sel' : 'optimistic-remove');
+        var cls = cardActionPending[i] ? ('pending ' + (cardActionOptimistic[i] ? 'optimistic-sel' : 'optimistic-remove')) : (myMap[i] ? 'sel' : (tkMap[i] ? 'taken' : ''));
         gh += '<div class="gnum ' + cls + '" data-card="' + i + '">' + i + '</div>';
       }
       var selGridEl = document.getElementById('selGrid');
