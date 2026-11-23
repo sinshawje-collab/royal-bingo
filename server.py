@@ -517,7 +517,10 @@ def is_adm(uid):
 def menu_kb(uid=None):
   # Admin accounts must never see player-facing reply-keyboard actions.
   if uid and is_adm(uid):
-    return RKR()
+    # Admins get one dedicated persistent Mini App launcher, never player actions.
+    kb = RKB(resize_keyboard=True, one_time_keyboard=False)
+    kb.add(KBtn('📱 ወደ Mini App ግባ', web_app=WebAppInfo(url=APP_URL)))
+    return kb
   # Keep Telegram menu actions as normal text buttons so player workflows run.
   kb = RKB(resize_keyboard=True, row_width=2)
   kb.row(KBtn('📝 Register'), KBtn('🎮 Play'))
@@ -589,7 +592,7 @@ if bot:
     try:
       if not is_adm(uid):
         return bot.reply_to(m, '⛔ ይህ መቆጣጠሪያ ለተፈቀደላቸው አድሚኖች ብቻ ነው። የTelegram ID ለማየት /myid ይጻፉ።')
-      bot.send_message(m.chat.id, '👑 ROYAL BINGO — የአድሚን መቆጣጠሪያ', reply_markup=RKR())
+      bot.send_message(m.chat.id, '👑 ROYAL BINGO — የአድሚን መቆጣጠሪያ', reply_markup=menu_kb(uid))
       bot.send_message(m.chat.id, '👑 የአድሚን መቆጣጠሪያ', reply_markup=adm_kb())
     except Exception as exc:
       print(f'Admin panel open failed for uid={uid}: {type(exc).__name__}: {exc}')
@@ -606,7 +609,7 @@ if bot:
     u = ensure_user(m.from_user.id, telegram_name, ref)
     # Administrators enter the control panel directly; no player registration or Play button required.
     if is_adm(m.from_user.id):
-      bot.send_message(m.chat.id, '👑 ROYAL BINGO — እንኳን ወደ Admin Control Center በደህና መጡ!', reply_markup=RKR())
+      bot.send_message(m.chat.id, '👑 ROYAL BINGO — እንኳን ወደ Admin Control Center በደህና መጡ!', reply_markup=menu_kb(m.from_user.id))
       return bot.send_message(m.chat.id, '👑 የአድሚን መቆጣጠሪያ', reply_markup=adm_kb())
     if not u['phone']:
       kb = RKB(resize_keyboard=True, one_time_keyboard=True); kb.add(KBtn('📱 ስልክ ቁጥር አጋራ', request_contact=True))
