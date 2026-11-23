@@ -174,11 +174,15 @@ def finance_service_status(now=None):
     'message': '⛔ የገቢና ወጪ አገልግሎት በየቀኑ ከማታ 3:00 (9:00 PM) እስከ ጠዋት 2:00 (8:00 AM) ድረስ ዝግ ነው። እባክዎ ከጠዋት 2:00 በኋላ ይመለሱ።'
   }
 
-def ensure_finance_service_open():
+def ensure_finance_service_open(uid=None):
   status = finance_service_status()
-  if status['closed']:
+  # Finance hours restrict players only; both verified admins remain exempt.
+  if status['closed'] and not (uid is not None and is_adm(uid)):
     raise HTTPException(503, status['message'])
   return status
+
+def finance_service_closed_for(uid):
+  return finance_service_status()['closed'] and not is_adm(uid)
 
 def finance_closed_bot_message():
   return '⛔ የገቢና ወጪ አገልግሎት በየቀኑ ከማታ 3:00 (9:00 PM) እስከ ጠዋት 2:00 (8:00 AM) ድረስ ዝግ ነው። እባክዎ ከጠዋት 2:00 በኋላ ይሞክሩ።'
@@ -637,20 +641,20 @@ if bot:
   @bot.message_handler(commands=['deposit'])
   @bot.message_handler(func=lambda m: m.text in ('💰 ገቢ (Deposit)', '💳 Deposit'))
   def c_dep(m):
-    if finance_service_status()['closed']: return bot.send_message(m.chat.id, finance_closed_bot_message())
+    if finance_service_closed_for(m.from_user.id): return bot.send_message(m.chat.id, finance_closed_bot_message())
     kb = IKB(); kb.row(IBtn('📲 TeleBirr', callback_data='dep_TeleBirr'), IBtn('🏦 CBE Birr', callback_data='dep_CBE'))
     bot.send_message(m.chat.id, '💳 የክፍያ አማራጭ ይምረጡ፦', reply_markup=kb)
 
   @bot.callback_query_handler(func=lambda c: c.data in ('dep_TeleBirr', 'dep_CBE'))
   def cb_dep(call):
-    if finance_service_status()['closed']:
+    if finance_service_closed_for(call.from_user.id):
       return bot.answer_callback_query(call.id, finance_closed_bot_message(), show_alert=True)
     bot.answer_callback_query(call.id); md = call.data.split('_')[1]
     bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💵 በ {md} የሚያስገቡትን መጠን ይጻፉ (ዝቅተኛ 20 ETB)፦'), s_dep_amt, md)
 
   def s_dep_amt(m, md):
     if dispatch_menu_from_step(m): return
-    if finance_service_status()['closed']: return bot.reply_to(m, finance_closed_bot_message())
+    if finance_service_closed_for(m.from_user.id): return bot.reply_to(m, finance_closed_bot_message())
     try:
       amt = float((m.text or '').strip())
       if not math.isfinite(amt) or amt < 20 or amt > 1000000:
@@ -1082,8 +1086,9 @@ async def api_transfer(req: Request, x_tg_init_data: str = Header(default='')):
 
 @app.post('/api/deposit')
 async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
-  ensure_finance_service_open()
-  u, b = auth_user(x_tg_init_data), await req.json()
+  u = auth_user(x_tg_init_data)
+  ensure_finance_service_open(u['uid'])
+  b = await req.json()
   try: amt = float(b.get('amount', 0))
   except (TypeError, ValueError): raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
   tx = str(b.get('tx_id', '')).strip()
@@ -1171,8 +1176,9 @@ async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default
 
 @app.post('/api/withdraw')
 async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
-  ensure_finance_service_open()
-  u, b = auth_user(x_tg_init_data), await req.json()
+  u = auth_user(x_tg_init_data)
+  ensure_finance_service_open(u['uid'])
+  b = await req.json()
   try: amt = float(b.get('amount', 0))
   except (TypeError, ValueError): raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
   raw_phone = str(b.get('phone', '')).strip()
