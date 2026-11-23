@@ -1035,7 +1035,8 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
     rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at) VALUES (?,?,?,?,?,?,?)',
                     ('withdraw', u['uid'], amt, method, f'PENDING RESERVED | App Account: {ph}', 'pending', int(time.time()))).lastrowid
   try:
-    aids = admin_ids()
+    # Send the request only to the admin whose finance turn is currently active.
+    aids = finance_admin_ids()
     if bot and aids:
       kb = IKB()
       kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
