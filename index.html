@@ -282,8 +282,6 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
           <div id="actCards" class="acards"></div>
         </div>
       </div>
-      <div class="shd" style="margin-top:12px"><span>🎴 ሁሉም ካርዶች (1–400)</span><span style="font-size:10px;color:var(--mut)">ቀጣይ ዙር ለመምረጥ</span></div>
-      <div class="gwrap"><div id="playSelGrid" class="cgrid"></div></div>
     </div>
     <div id="adminBroadcast" class="scard" style="display:none">
       <div class="shd"><span>📢 ለሁሉም ተጫዋቾች መልእክት</span></div>
@@ -587,15 +585,6 @@ function renderState(d) {
   } else if (r.phase === 'PLAYING' || r.phase === 'WINNER') {
     document.getElementById('lobbyView').style.display = 'none';
     document.getElementById('playView').style.display = 'block';
-    var ptkMap = {}, pmyMap = {};
-    takenCards.forEach(function(n) { ptkMap[n] = true; });
-    myCards.forEach(function(n) { pmyMap[n] = true; });
-    var pgh = '';
-    for (var pi = 1; pi <= 400; pi++) {
-      var pcl = pmyMap[pi] ? 'sel' : (ptkMap[pi] ? 'taken' : '');
-      pgh += '<div class="gnum ' + pcl + '" title="' + (pcl === 'sel' ? 'የእርስዎ ካርድ' : (pcl === 'taken' ? 'ተይዟል' : 'በቀጣይ ዙር ይገኛል')) + '">' + pi + '</div>';
-    }
-    document.getElementById('playSelGrid').innerHTML = pgh;
     document.getElementById('pDer').textContent = r.derash;
     document.getElementById('pPly').textContent = r.players;
     document.getElementById('pCal').textContent = r.called.length;
