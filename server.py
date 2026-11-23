@@ -25,8 +25,8 @@ CBE_NAME = os.environ.get('CBE_BIRR_NAME', 'Sinshaw Jemaneh Eshete')
 CBE_PHONE = os.environ.get('CBE_BIRR_PHONE', '0941882333')
 DB_PATH = os.environ.get('DB_PATH', 'royal_bingo.db')
 DATABASE_URL = os.environ.get('DATABASE_URL', '').strip().strip("'\\\"")
-HOUSE_CUT, CD_SEC, CALL_SEC, WIN_SEC = 0.20, 0, 3.0, 10
-MIN_PLAYERS = int(os.environ.get('MIN_PLAYERS', '2') or '2')
+HOUSE_CUT, CD_SEC, CALL_SEC, WIN_SEC = 0.20, 40, 3.0, 10
+MIN_PLAYERS = 1
 db_lock, room_lock = threading.RLock(), threading.RLock()
 
 class HybridRow(dict):
@@ -191,6 +191,14 @@ def reset_room(r):
   r.update({'phase': 'WAITING', 'countdown': CD_SEC, 'cards': {}, 'called': [], 'deck': [], 'winner': None, 'tick': time.time(), 'win_until': 0.0, 'round_id': secrets.token_hex(12)})
   save_room(r)
 
+def start_round(r, now):
+  r.update({'phase': 'PLAYING', 'countdown': 0, 'called': [], 'deck': list(range(1, 76)), 'tick': now})
+  secrets.SystemRandom().shuffle(r['deck'])
+  save_room(r)
+  with get_db() as c:
+    for uid in {v['uid'] for v in r['cards'].values()}:
+      c.execute('UPDATE users SET matches_played=matches_played+1 WHERE uid=?', (uid,))
+
 def game_loop():
   while True:
     now = time.time()
@@ -198,26 +206,22 @@ def game_loop():
       for r in rooms.values():
         pc = n_players(r)
         if r['phase'] == 'WAITING' and pc >= MIN_PLAYERS:
-          # Start immediately: no lobby countdown. Only real, paid-in players
-          # Only real, paid-in players satisfy MIN_PLAYERS.
-          r.update({'phase': 'PLAYING', 'countdown': 0, 'called': [], 'deck': list(range(1, 76)), 'tick': now})
-          secrets.SystemRandom().shuffle(r['deck'])
+          # Every round, including solo play, begins with a full 40-second lobby countdown.
+          r.update({'phase': 'COUNTDOWN', 'countdown': CD_SEC, 'tick': now})
           save_room(r)
-          with get_db() as c:
-            for uid in {v['uid'] for v in r['cards'].values()}:
-              c.execute('UPDATE users SET matches_played=matches_played+1 WHERE uid=?', (uid,))
         elif r['phase'] == 'COUNTDOWN':
-          # Finish any countdown left over from an older saved room immediately.
           if pc < MIN_PLAYERS:
-            r.update({'phase': 'WAITING', 'countdown': 0})
+            r.update({'phase': 'WAITING', 'countdown': CD_SEC, 'tick': now})
             save_room(r)
           else:
-            r.update({'phase': 'PLAYING', 'countdown': 0, 'called': [], 'deck': list(range(1, 76)), 'tick': now})
-            secrets.SystemRandom().shuffle(r['deck'])
-            save_room(r)
-            with get_db() as c:
-              for uid in {v['uid'] for v in r['cards'].values()}:
-                c.execute('UPDATE users SET matches_played=matches_played+1 WHERE uid=?', (uid,))
+            elapsed = int(now - float(r.get('tick', now)))
+            if elapsed >= 1:
+              remaining = max(0, int(r.get('countdown', CD_SEC)) - elapsed)
+              if remaining <= 0:
+                start_round(r, now)
+              else:
+                r.update({'countdown': remaining, 'tick': float(r.get('tick', now)) + elapsed})
+                save_room(r)
         elif r['phase'] == 'PLAYING' and now - r['tick'] >= CALL_SEC:
           r['tick'] = now
           if r['deck']:
@@ -444,9 +448,9 @@ if bot:
       act = 'add' if d == 'adm_add' else 'sub'
       bot.register_next_step_handler(bot.send_message(call.message.chat.id, '✏️ Player Phone ID እና መጠን ይላኩ (ምሳሌ፦ `+2519XXXXXXXX 100`)' , parse_mode='Markdown'), s_adm_bal, act)
     elif d == 'adm_minp':
-      MIN_PLAYERS = 1 if MIN_PLAYERS >= 3 else MIN_PLAYERS + 1
+      MIN_PLAYERS = 1
       bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=adm_kb())
-      bot.send_message(call.message.chat.id, f'⚙️ ዝቅተኛ ተጫዋች ወደ {MIN_PLAYERS} ተቀይሯል።')
+      bot.send_message(call.message.chat.id, '⚙️ አንድ ተጫዋች ብቻ ቢኖርም ጨዋታው ይቻላል። 40 ሰከንድ ቆጠራ ይኖራል።')
     elif d == 'adm_backup':
       bot.send_message(call.message.chat.id, '💾 Neon PostgreSQL ዳታቤዝ በRender local file አይደለም። Backup ከNeon Console ወይም pg_dump መውሰድ ያስፈልጋል።')
     elif d == 'adm_bcast':
