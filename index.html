@@ -402,7 +402,7 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
         <div id="depClosedNotice" style="display:none;margin:10px 0;padding:12px;border:1px solid #d69b35;border-radius:12px;background:rgba(214,155,53,.12);color:#ffd98a;font-size:13px;font-weight:700;text-align:center">⛔ የገቢና ወጪ አገልግሎት በየቀኑ ከማታ 3:00 (9:00 PM) እስከ ጠዋት 2:00 (8:00 AM) ድረስ ዝግ ነው። ከጠዋት 2:00 በኋላ ይመለሱ።</div>
         <div class="tgrid" style="margin-bottom:12px">
           <button type="button" id="depTeleBtn" class="tbtn on payment-choice" onclick="selectDepositMethod('TeleBirr')"><img class="pay-logo-img" src="https://assets.plqcdn.com/storage/payment-methods/May2026/c3pCxOZ0GfaXbs6hoS4h.png" alt="Official TeleBirr logo"><span class="pay-name">TeleBirr</span></button>
-          <button type="button" id="depCbeBtn" class="tbtn  payment-choice" onclick="selectDepositMethod('CBE Birr')"><img class="pay-logo-img" src="https://media.licdn.com/dms/image/v2/C4D12AQEZmf-Mj6se_A/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520060098817?e=2147483647&amp;t=GZRP6KxAgkRrKLeLXPAba0VTGq_Sn7k5JfBaKkv-k0U&amp;v=beta" alt="CBE Birr logo"><span class="pay-name">CBE Birr</span></button>
+          <button type="button" id="depCbeBtn" class="tbtn  payment-choice" onclick="selectDepositMethod('CbeBirr')"><img class="pay-logo-img" src="https://media.licdn.com/dms/image/v2/C4D12AQEZmf-Mj6se_A/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520060098817?e=2147483647&amp;t=GZRP6KxAgkRrKLeLXPAba0VTGq_Sn7k5JfBaKkv-k0U&amp;v=beta" alt="CbeBirr logo"><span class="pay-name">CbeBirr</span></button>
         </div>
         <div class="abox">
           <div class="arow">
@@ -424,7 +424,7 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
         <div class="shd" style="font-size:12px;color:var(--mut);margin:4px 0 8px">የወጪ ክፍያ ዘዴ ይምረጡ</div>
         <div class="tgrid" style="margin-bottom:12px">
           <button type="button" id="wdTeleBtn" class="tbtn on payment-choice" onclick="selectWithdrawMethod('TeleBirr')"><img class="pay-logo-img" src="https://assets.plqcdn.com/storage/payment-methods/May2026/c3pCxOZ0GfaXbs6hoS4h.png" alt="Official TeleBirr logo"><span class="pay-name">TeleBirr</span></button>
-          <button type="button" id="wdCbeBtn" class="tbtn  payment-choice" onclick="selectWithdrawMethod('CBE Birr')"><img class="pay-logo-img" src="https://media.licdn.com/dms/image/v2/C4D12AQEZmf-Mj6se_A/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520060098817?e=2147483647&amp;t=GZRP6KxAgkRrKLeLXPAba0VTGq_Sn7k5JfBaKkv-k0U&amp;v=beta" alt="CBE Birr logo"><span class="pay-name">CBE Birr</span></button>
+          <button type="button" id="wdCbeBtn" class="tbtn  payment-choice" onclick="selectWithdrawMethod('CbeBirr')"><img class="pay-logo-img" src="https://media.licdn.com/dms/image/v2/C4D12AQEZmf-Mj6se_A/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520060098817?e=2147483647&amp;t=GZRP6KxAgkRrKLeLXPAba0VTGq_Sn7k5JfBaKkv-k0U&amp;v=beta" alt="CbeBirr logo"><span class="pay-name">CbeBirr</span></button>
         </div>
         <div class="fstack">
           <input id="wdAmt" class="rinp" type="number" min="100" placeholder="የሚወጣው መጠን (ዝቅተኛ 100 ETB)" />
@@ -679,8 +679,8 @@ function renderState(d) {
   }
   // Refresh the payment recipient on every state poll so a finance handover
   // updates the visible account name and phone even while the deposit panel is open.
-  var payPhone = selectedDepositMethod === 'CBE Birr' ? (cfg.cbe_phone || '') : (cfg.telebirr_phone || '');
-  var payName = selectedDepositMethod === 'CBE Birr' ? (cfg.cbe_name || '') : (cfg.telebirr_name || '');
+  var payPhone = selectedDepositMethod === 'CbeBirr' ? (cfg.cbe_phone || '') : (cfg.telebirr_phone || '');
+  var payName = selectedDepositMethod === 'CbeBirr' ? (cfg.cbe_name || '') : (cfg.telebirr_name || '');
   document.querySelectorAll('[id="agPhone"]').forEach(function(el){ el.textContent = payPhone; });
   document.querySelectorAll('[id="agName"]').forEach(function(el){ el.textContent = payName; });
   var balance = Number(u.balance != null ? u.balance : (u.play_wallet || 0) + (u.win_wallet || 0));
@@ -954,11 +954,11 @@ var selectedDepositMethod = 'TeleBirr';
 function selectDepositMethod(method) {
   selectedDepositMethod = method;
   document.getElementById('depTeleBtn').classList.toggle('on', method === 'TeleBirr');
-  document.getElementById('depCbeBtn').classList.toggle('on', method === 'CBE Birr');
+  document.getElementById('depCbeBtn').classList.toggle('on', method === 'CbeBirr');
   document.getElementById('agMethod').textContent = method;
   var cfg = (latestState && latestState.config) || {};
-  var payPhone = method === 'CBE Birr' ? (cfg.cbe_phone || '0941882333') : (cfg.telebirr_phone || '0941882333');
-  var payName = method === 'CBE Birr' ? (cfg.cbe_name || 'SINSHAW JEMANEH ESHETE') : (cfg.telebirr_name || 'SINSHAW JEMANEH ESHETE');
+  var payPhone = method === 'CbeBirr' ? (cfg.cbe_phone || '0941882333') : (cfg.telebirr_phone || '0941882333');
+  var payName = method === 'CbeBirr' ? (cfg.cbe_name || 'SINSHAW JEMANEH ESHETE') : (cfg.telebirr_name || 'SINSHAW JEMANEH ESHETE');
   document.querySelectorAll('[id="agPhone"]').forEach(function(el){ el.textContent = payPhone; });
   document.querySelectorAll('[id="agName"]').forEach(function(el){ el.textContent = payName; });
 }
@@ -1094,7 +1094,7 @@ var selectedWithdrawMethod = 'TeleBirr';
 function selectWithdrawMethod(method) {
   selectedWithdrawMethod = method;
   document.getElementById('wdTeleBtn').classList.toggle('on', method === 'TeleBirr');
-  document.getElementById('wdCbeBtn').classList.toggle('on', method === 'CBE Birr');
+  document.getElementById('wdCbeBtn').classList.toggle('on', method === 'CbeBirr');
 }
 async function sendWd() {
   if (latestState && latestState.finance_service && latestState.finance_service.closed) return toast('⛔ የገቢና ወጪ አገልግሎት ከማታ 3:00 እስከ ጠዋት 2:00 ዝግ ነው።');
