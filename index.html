@@ -257,6 +257,7 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
 #cardPicker .gnum{aspect-ratio:1/.88;border-radius:6px;font-size:clamp(9px,2.7vw,12px);padding:2px 0}
 @media(max-width:380px){#cardPicker .cgrid{gap:3px}#cardPicker .gnum{font-size:9px}}
 
+.finance-closed .tgrid,.finance-closed .abox,.finance-closed .fstack{opacity:.42;pointer-events:none}
 </style>
 </head>
 <body>
@@ -398,6 +399,7 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
       </div>
       <div id="depDrw" class="drw">
         <div class="shd c-em">📲 የገቢ ክፍያ ዘዴ ይምረጡ</div>
+        <div id="depClosedNotice" style="display:none;margin:10px 0;padding:12px;border:1px solid #d69b35;border-radius:12px;background:rgba(214,155,53,.12);color:#ffd98a;font-size:13px;font-weight:700;text-align:center">⛔ የገቢና ወጪ አገልግሎት በየቀኑ ከማታ 3:00 (9:00 PM) እስከ ጠዋት 2:00 (8:00 AM) ድረስ ዝግ ነው። ከጠዋት 2:00 በኋላ ይመለሱ።</div>
         <div class="tgrid" style="margin-bottom:12px">
           <button type="button" id="depTeleBtn" class="tbtn on payment-choice" onclick="selectDepositMethod('TeleBirr')"><img class="pay-logo-img" src="https://assets.plqcdn.com/storage/payment-methods/May2026/c3pCxOZ0GfaXbs6hoS4h.png" alt="Official TeleBirr logo"><span class="pay-name">TeleBirr</span></button>
           <button type="button" id="depCbeBtn" class="tbtn  payment-choice" onclick="selectDepositMethod('CBE Birr')"><img class="pay-logo-img" src="https://media.licdn.com/dms/image/v2/C4D12AQEZmf-Mj6se_A/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520060098817?e=2147483647&amp;t=GZRP6KxAgkRrKLeLXPAba0VTGq_Sn7k5JfBaKkv-k0U&amp;v=beta" alt="CBE Birr logo"><span class="pay-name">CBE Birr</span></button>
@@ -418,6 +420,7 @@ html,body{background:radial-gradient(ellipse at 50% -8%,#35106a 0%,#13072f 34%,#
 
       <div id="wdDrw" class="drw">
         <div class="shd c-gold">💸 የወጪ ጥያቄ (Withdrawal)</div>
+        <div id="wdClosedNotice" style="display:none;margin:10px 0;padding:12px;border:1px solid #d69b35;border-radius:12px;background:rgba(214,155,53,.12);color:#ffd98a;font-size:13px;font-weight:700;text-align:center">⛔ የገቢና ወጪ አገልግሎት በየቀኑ ከማታ 3:00 (9:00 PM) እስከ ጠዋት 2:00 (8:00 AM) ድረስ ዝግ ነው። ከጠዋት 2:00 በኋላ ይመለሱ።</div>
         <div class="shd" style="font-size:12px;color:var(--mut);margin:4px 0 8px">የወጪ ክፍያ ዘዴ ይምረጡ</div>
         <div class="tgrid" style="margin-bottom:12px">
           <button type="button" id="wdTeleBtn" class="tbtn on payment-choice" onclick="selectWithdrawMethod('TeleBirr')"><img class="pay-logo-img" src="https://assets.plqcdn.com/storage/payment-methods/May2026/c3pCxOZ0GfaXbs6hoS4h.png" alt="Official TeleBirr logo"><span class="pay-name">TeleBirr</span></button>
@@ -642,6 +645,15 @@ var cardGridClickBound = false;
 function renderState(d) {
   latestState = d;
   var u = d.user || {}, r = d.room || {}, cfg = d.config || {};
+  var financeClosed = !!(d.finance_service && d.finance_service.closed);
+  ['depDrw','wdDrw'].forEach(function(id) {
+    var panel = document.getElementById(id);
+    if (panel) panel.classList.toggle('finance-closed', financeClosed);
+  });
+  ['depClosedNotice','wdClosedNotice'].forEach(function(id) {
+    var notice = document.getElementById(id);
+    if (notice) notice.style.display = financeClosed ? 'block' : 'none';
+  });
   // Keep the card picker visible even if an older/partial room payload is returned.
   var takenCards = Array.isArray(r.taken_cards) ? r.taken_cards : [];
   var myCards = Array.isArray(r.my_cards) ? r.my_cards : [];
@@ -981,6 +993,7 @@ async function sendTransfer() {
 }
 
 async function sendDep() {
+  if (latestState && latestState.finance_service && latestState.finance_service.closed) return toast('⛔ የገቢና ወጪ አገልግሎት ከማታ 3:00 እስከ ጠዋት 2:00 ዝግ ነው።');
   var a = parseFloat(document.getElementById('depAmt').value);
   var tx = document.getElementById('depTx').value.trim();
   try {
@@ -1084,6 +1097,7 @@ function selectWithdrawMethod(method) {
   document.getElementById('wdCbeBtn').classList.toggle('on', method === 'CBE Birr');
 }
 async function sendWd() {
+  if (latestState && latestState.finance_service && latestState.finance_service.closed) return toast('⛔ የገቢና ወጪ አገልግሎት ከማታ 3:00 እስከ ጠዋት 2:00 ዝግ ነው።');
   var a = parseFloat(document.getElementById('wdAmt').value);
   var ph = document.getElementById('wdPh').value.trim();
   try {
