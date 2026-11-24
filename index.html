@@ -407,6 +407,7 @@ body.light #adminDashboard .admin-room-mini,body.light #adminDashboard .admin-st
       </div>
       <div class="admin-tool-card" id="adminUsersPanel"><div class="admin-section-head"><div><div class="admin-eyebrow">PLAYER MANAGEMENT</div><div class="admin-section-title">👥 ተጫዋቾች</div></div><button class="admin-room-tab" onclick="loadAdminUsers()">↻ Refresh</button></div><div id="adminUsersList" class="admin-users-list"><div class="admin-empty">ተጫዋቾችን በመጫን ላይ...</div></div></div>
       <div class="admin-tool-card" id="adminWalletPanel"><div class="admin-section-head"><div><div class="admin-eyebrow">WALLET MANAGEMENT</div><div class="admin-section-title">💳 ብር ጨምር / ቀንስ</div></div></div><p class="admin-control-desc">በPlayer ID ወይም በተመዘገበ ስልክ ቁጥር ተጫዋቹን ይፈልጉ።</p><input id="adminWalletPlayer" class="admin-tool-input" type="text" placeholder="Player ID / 09XXXXXXXX" /><input id="adminWalletAmount" class="admin-tool-input" type="number" min="0.01" step="0.01" placeholder="የገንዘብ መጠን (ETB)" /><div class="admin-control-actions"><button class="admin-start-btn" onclick="adjustAdminWallet('add')">➕ ብር ጨምር</button><button class="admin-stop-btn" onclick="adjustAdminWallet('subtract')">➖ ብር ቀንስ</button></div><div id="adminWalletResult" class="admin-safe-note"></div></div>
+      <div class="admin-tool-card" id="adminPaymentReaderPanel"><div class="admin-section-head"><div><div class="admin-eyebrow">PAYMENT SMS READER</div><div class="admin-section-title">📲 TeleBirr / CBE SMS አገናኝ</div></div><span class="admin-readonly">ADMIN ONLY</span></div><p class="admin-control-desc">Samsung S22 Ultra ላይ Royal Bingo Payment Reader APK ከጫኑ በኋላ ይህን ኮድ በስልኩ ውስጥ ያስገቡ። ኮዱ 5 ደቂቃ ብቻ ይሰራል።</p><button class="admin-start-btn" style="width:100%" onclick="createPaymentReaderPairCode()">🔐 የማገናኛ ኮድ ፍጠር</button><div id="adminPaymentPairCode" style="display:none;margin-top:12px;padding:16px;border:1px dashed #fbbf24;border-radius:12px;text-align:center;font-size:30px;font-weight:950;letter-spacing:5px;color:#fbbf24"></div><div id="adminPaymentPairStatus" class="admin-safe-note">ስልኩ ከተገናኘ በኋላ Notification Access ማብራት ያስፈልጋል። SMS በቀጥታ ወደ Wallet አይጨምርም፤ አድሚን በእጅ ያጸድቃል።</div></div>
       <div class="admin-tool-card" id="adminSettingsPanel"><div class="admin-section-head"><div><div class="admin-eyebrow">GAME SETTINGS</div><div class="admin-section-title">⚙️ ዝቅተኛ ተጫዋች ብዛት</div></div></div><p class="admin-control-desc">ሶስቱንም የ10 / 20 / 50 ETB ክፍሎች ይቆጣጠራል።</p><div class="admin-min-player-row"><button class="admin-room-tab" onclick="changeAdminMinPlayers(-1)">➖</button><strong id="adminMinPlayersValue">1</strong><button class="admin-room-tab" onclick="changeAdminMinPlayers(1)">➕</button></div><div class="admin-safe-note">ለውጡ በዳታቤዝ ይቀመጣል።</div></div>
       <div class="admin-tool-card" id="adminBackupPanel"><div class="admin-section-head"><div><div class="admin-eyebrow">DATABASE SAFETY</div><div class="admin-section-title">💾 DB Backup</div></div></div><p class="admin-control-desc">የRoyal Bingo PostgreSQL ዳታቤዝን ወደ ZIP ፋይል ያውርዱ። በውስጡ ያሉ ሰንጠረዦች በJSON ቅርጽ ይቀመጣሉ።</p><button class="admin-primary-btn" id="adminBackupBtn" onclick="downloadAdminBackup()">📥 DB Backup አውርድ</button><div id="adminBackupResult" class="admin-safe-note">🔒 ለአድሚን ብቻ የተፈቀደ · የዳታቤዝ ይዘት ብቻ ይወሰዳል፤ የመግቢያ ሚስጥሮች አይካተቱም።</div></div>
     </div>
@@ -1026,6 +1027,13 @@ async function downloadAdminBackup(){
     status.textContent='✅ Backup ZIP ፋይሉ ተዘጋጅቷል። በDownloads ውስጥ ይፈልጉት።';toast('✅ DB Backup ተዘጋጅቷል');
   }catch(e){status.textContent='❌ '+e.message;toast('❌ '+e.message);}
   finally{btn.disabled=false;btn.textContent='📥 DB Backup አውርድ';}
+}
+
+async function createPaymentReaderPairCode(){
+  var box=document.getElementById('adminPaymentPairCode'),status=document.getElementById('adminPaymentPairStatus');
+  box.style.display='block';box.textContent='••••••••';status.textContent='የማገናኛ ኮድ በመፍጠር ላይ...';
+  try{var data=await apiReq('/api/admin/payment-device/pair-code','POST',{});box.textContent=data.pairing_code;status.textContent='⏳ 5 ደቂቃ ውስጥ በS22 Ultra Payment Reader አፕ ውስጥ ያስገቡ። ኮዱ አንድ ጊዜ ብቻ ይሰራል።';}
+  catch(e){box.style.display='none';status.textContent='❌ '+e.message;toast('❌ '+e.message);}
 }
 
 async function loadAdminUsers(){
