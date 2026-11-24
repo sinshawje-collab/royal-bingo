@@ -764,7 +764,7 @@ if bot:
     if not math.isfinite(amt) or amt < 20 or amt > 1000000:
       return bot.reply_to(m, '❌ በSMS ውስጥ ያለው መጠን 20 ETB እስከ 1,000,000 ETB መሆን አለበት።')
     method = 'CbeBirr' if md == 'CBE' else 'TeleBirr'
-    try: notify_req('deposit', m.from_user.id, amt, method, f'SMS submitted; TX: {tx}', reference=tx)
+    try: notify_req('deposit', m.from_user.id, amt, method, f'Full payment SMS:\\n{m.text[:2500]}', reference=tx)
     except sqlite3.IntegrityError: return bot.reply_to(m, '❌ ይህ Transaction ID ቀድሞ ተጠቅሟል።')
     bot.reply_to(m, f'✅ ሙሉ SMS ተቀብሏል። {amt:.2f} ETB / TX: {tx}\nየገቢ ጥያቄዎ ለአድሚን ተልኳል።', reply_markup=menu_kb(m.from_user.id))
 
@@ -1221,7 +1221,7 @@ async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
   amt, tx = parsed
   if not math.isfinite(amt) or amt < 20 or amt > 1000000:
     raise HTTPException(400, 'በSMS ውስጥ ያለው መጠን 20 ETB እስከ 1,000,000 ETB መሆን አለበት!')
-  try: notify_req('deposit', u['uid'], amt, method, f'Full SMS submitted; TX: {tx}', reference=tx)
+  try: notify_req('deposit', u['uid'], amt, method, f'Full payment SMS:\\n{sms[:2500]}', reference=tx)
   except sqlite3.IntegrityError: raise HTTPException(409, 'ይህ Transaction ID ቀድሞ ተጠቅሟል!')
   return {'ok': True, 'amount': amt, 'transaction_id': tx}
 
