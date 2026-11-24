@@ -710,6 +710,31 @@ if bot:
     u = ensure_user(m.from_user.id, m.from_user.first_name or 'Player')
     bot.send_message(m.chat.id, f'💰 ጠቅላላ ባላንስ: {u["play_wallet"]+u["win_wallet"]:.2f} ETB', reply_markup=play_kb('🎮 Play'))
 
+def parse_payment_sms(sms, method):
+  """Extract only amount and transaction ID from a pasted payment SMS."""
+  if not isinstance(sms, str) or len(sms.strip()) < 20 or len(sms) > 5000:
+    return None
+  text = sms.strip()
+  if method in ('CBE', 'CbeBirr', 'CBE Birr'):
+    amount_match = re.search(r'\breceived\s+(?:ETB\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:Br|ETB)\b', text, re.I)
+    tx_match = re.search(r'\b(?:Txn\s*ID|Transaction\s*(?:ID|number))\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
+    if not tx_match:
+      tx_match = re.search(r'\bTxn\s*ID\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
+  else:
+    amount_match = re.search(r'\breceived\s+ETB\s*([0-9][0-9,]*(?:\.\d{1,2})?)', text, re.I)
+    tx_match = re.search(r'\btransaction\s*(?:number|ID)\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
+  if not amount_match or not tx_match:
+    return None
+  try:
+    amount = float(amount_match.group(1).replace(',', ''))
+  except (TypeError, ValueError):
+    return None
+  txid = tx_match.group(1).strip().rstrip('.,;:')
+  if not math.isfinite(amount) or amount <= 0 or len(txid) < 4:
+    return None
+  return amount, txid
+
+
   @bot.message_handler(commands=['deposit'])
   @bot.message_handler(func=lambda m: m.text in ('💰 ገቢ (Deposit)', '💳 Deposit'))
   def c_dep(m):
@@ -722,27 +747,27 @@ if bot:
     if finance_service_closed_for(call.from_user.id):
       return bot.answer_callback_query(call.id, finance_closed_bot_message(), show_alert=True)
     bot.answer_callback_query(call.id); md = call.data.split('_')[1]
-    bot.register_next_step_handler(bot.send_message(call.message.chat.id, f'💵 በ {"CbeBirr" if md == "CBE" else md} የሚያስገቡትን መጠን ይጻፉ (ዝቅተኛ 20 ETB)፦'), s_dep_amt, md)
-
-  def s_dep_amt(m, md):
-    if dispatch_menu_from_step(m): return
-    if finance_service_closed_for(m.from_user.id): return bot.reply_to(m, finance_closed_bot_message())
-    try:
-      amt = float((m.text or '').strip())
-      if not math.isfinite(amt) or amt < 20 or amt > 1000000:
-        return bot.reply_to(m, '❌ 20 ETB እስከ 1,000,000 ETB ያለ ትክክለኛ መጠን ያስገቡ።')
-    except Exception: return bot.reply_to(m, '❌ ትክክለኛ ቁጥር ያስገቡ።')
     pay = active_payment_accounts()
-    bot.register_next_step_handler(bot.send_message(m.chat.id, f"🏦 {'CbeBirr' if md == 'CBE' else md}\n👤 {pay['telebirr_name'] if md == 'TeleBirr' else pay['cbe_name']}\n📱 {pay['telebirr_phone'] if md == 'TeleBirr' else pay['cbe_phone']}\n💵 {amt:.2f} ETB\n\nከላኩ በኋላ የSMS Transaction ID ይላኩ 👇"), s_dep_tx, amt, md)
+    method_name = 'CbeBirr' if md == 'CBE' else 'TeleBirr'
+    bot.register_next_step_handler(bot.send_message(call.message.chat.id,
+      f"🏦 {method_name}\n👤 {pay['cbe_name'] if md == 'CBE' else pay['telebirr_name']}\n📱 {pay['cbe_phone'] if md == 'CBE' else pay['telebirr_phone']}\n\n"
+      "📩 ክፍያውን ከፈጸሙ በኋላ ከTeleBirr/CBE የደረሰዎትን ሙሉ SMS ኮፒ አድርገው ይላኩ።\n"
+      "⚠️ Transaction ID ብቻ አይላኩ። ሙሉውን የSMS ጽሑፍ ይላኩ።"), s_dep_tx, md)
 
-  def s_dep_tx(m, amt, md):
+  def s_dep_tx(m, md):
     if dispatch_menu_from_step(m): return
     if finance_service_closed_for(m.from_user.id): return bot.reply_to(m, finance_closed_bot_message())
-    tx = (m.text or '').strip()
-    if len(tx) < 4 or len(tx) > 120: return bot.reply_to(m, '❌ ትክክለኛ Transaction ID ያስገቡ።')
-    try: notify_req('deposit', m.from_user.id, amt, md, f'TX: {tx}', reference=tx)
+    sms = (m.text or '').strip()
+    parsed = parse_payment_sms(sms, md)
+    if not parsed:
+      return bot.reply_to(m, '❌ ሙሉ የTeleBirr/CBE የክፍያ SMS አልተለየም። Amount እና Transaction ID ያሉበትን ሙሉ SMS ኮፒ አድርገው እንደገና ይላኩ።')
+    amt, tx = parsed
+    if not math.isfinite(amt) or amt < 20 or amt > 1000000:
+      return bot.reply_to(m, '❌ በSMS ውስጥ ያለው መጠን 20 ETB እስከ 1,000,000 ETB መሆን አለበት።')
+    method = 'CbeBirr' if md == 'CBE' else 'TeleBirr'
+    try: notify_req('deposit', m.from_user.id, amt, method, f'SMS submitted; TX: {tx}', reference=tx)
     except sqlite3.IntegrityError: return bot.reply_to(m, '❌ ይህ Transaction ID ቀድሞ ተጠቅሟል።')
-    bot.reply_to(m, f'✅ የ {amt:.2f} ETB ገቢ ጥያቄዎ ለአድሚን ተልኳል!', reply_markup=menu_kb(m.from_user.id))
+    bot.reply_to(m, f'✅ ሙሉ SMS ተቀብሏል። {amt:.2f} ETB / TX: {tx}\nየገቢ ጥያቄዎ ለአድሚን ተልኳል።', reply_markup=menu_kb(m.from_user.id))
 
   @bot.message_handler(commands=['withdraw'])
   @bot.message_handler(func=lambda m: m.text in ('💸 ወጪ (Withdraw)', '💸 Withdraw'))
@@ -1187,17 +1212,19 @@ async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
   u = auth_user(x_tg_init_data)
   ensure_finance_service_open(u['uid'])
   b = await req.json()
-  try: amt = float(b.get('amount', 0))
-  except (TypeError, ValueError): raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
-  tx = str(b.get('tx_id', '')).strip()
   method = str(b.get('method', 'TeleBirr')).strip()
   if method not in ('TeleBirr', 'CBE Birr', 'CbeBirr'):
     raise HTTPException(400, 'TeleBirr ወይም CbeBirr ይምረጡ!')
-  if not math.isfinite(amt) or amt < 20 or amt > 1000000 or len(tx) < 4 or len(tx) > 120:
-    raise HTTPException(400, 'ዝቅተኛ 20 ETB፣ ትክክለኛ Transaction ID እና ተገቢ መጠን ያስገቡ!')
-  try: notify_req('deposit', u['uid'], amt, method, f'App TX: {tx}', reference=tx)
+  sms = str(b.get('sms', '')).strip()
+  parsed = parse_payment_sms(sms, method)
+  if not parsed:
+    raise HTTPException(400, 'ሙሉ የTeleBirr/CBE የክፍያ SMS ይላኩ። Amount እና Transaction ID በSMS ውስጥ መኖር አለባቸው!')
+  amt, tx = parsed
+  if not math.isfinite(amt) or amt < 20 or amt > 1000000:
+    raise HTTPException(400, 'በSMS ውስጥ ያለው መጠን 20 ETB እስከ 1,000,000 ETB መሆን አለበት!')
+  try: notify_req('deposit', u['uid'], amt, method, f'Full SMS submitted; TX: {tx}', reference=tx)
   except sqlite3.IntegrityError: raise HTTPException(409, 'ይህ Transaction ID ቀድሞ ተጠቅሟል!')
-  return {'ok': True}
+  return {'ok': True, 'amount': amt, 'transaction_id': tx}
 
 
 # Admin pairs the Android companion app using a short-lived one-time code.
