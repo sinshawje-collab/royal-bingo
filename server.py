@@ -1266,7 +1266,7 @@ async def api_payment_device_notification(req: Request, authorization: str = Hea
     reqrow = c.execute("SELECT id,uid,amount,method FROM requests WHERE req_type='deposit' AND status='pending' AND lower(reference)=lower(?) ORDER BY id DESC LIMIT 1", (txid,)).fetchone()
     if not reqrow:
       return {'ok': True, 'matched': False, 'match_status': 'no_pending_transaction'}
-    expected_method = payment_method_label(reqrow['method'])
+    expected_method = 'CBE Birr' if payment_method_label(reqrow['method']) == 'CbeBirr' else 'TeleBirr'
     if abs(float(reqrow['amount'] or 0) - amount) > 0.01 or expected_method != provider:
       c.execute("UPDATE payment_sms_events SET match_status='details_mismatch' WHERE transaction_id=?", (txid,))
       return {'ok': True, 'matched': False, 'match_status': 'details_mismatch'}
