@@ -1226,8 +1226,36 @@ async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
   amt, tx = parsed
   if not math.isfinite(amt) or amt < 20 or amt > 1000000:
     raise HTTPException(400, 'በSMS ውስጥ ያለው መጠን 20 ETB እስከ 1,000,000 ETB መሆን አለበት!')
-  try: notify_req('deposit', u['uid'], amt, method, f'Full payment SMS:\\n{sms[:2500]}', reference=tx)
+  try: rid = notify_req('deposit', u['uid'], amt, method, f'Full payment SMS:\\n{sms[:2500]}', reference=tx)
   except sqlite3.IntegrityError: raise HTTPException(409, 'ይህ Transaction ID ቀድሞ ተጠቅሟል!')
+  # The bank notification may arrive before the player submits the SMS. Match any
+  # previously captured, still-unmatched device event as soon as the request exists.
+  with get_db() as c:
+    event = c.execute("SELECT provider,amount,transaction_id FROM payment_sms_events WHERE lower(transaction_id)=lower(?) AND matched_request_id IS NULL ORDER BY id DESC LIMIT 1", (tx,)).fetchone()
+    if event:
+      expected_provider = 'CBE Birr' if payment_method_label(method) == 'CbeBirr' else 'TeleBirr'
+      valid = abs(float(event['amount'] or 0)-amt) <= 0.01 and event['provider'] == expected_provider
+      if valid:
+        c.execute("UPDATE payment_sms_events SET matched_request_id=?,match_status='matched' WHERE lower(transaction_id)=lower(?) AND matched_request_id IS NULL", (rid,tx))
+        c.execute("UPDATE requests SET details=details || ? WHERE id=?", (f' | APK VERIFIED: {event["provider"]}, {amt:.2f} ETB, TX {tx}',rid))
+      else:
+        c.execute("UPDATE payment_sms_events SET matched_request_id=?,match_status='details_mismatch' WHERE lower(transaction_id)=lower(?) AND matched_request_id IS NULL", (rid,tx))
+  if event and bot:
+    try:
+      player = ensure_user(u['uid'])
+      kb = IKB()
+      if valid:
+        kb.row(IBtn('✅ APK አረጋግጧል — ፍቀድ', callback_data=f'ap_dep_{rid}'),
+               IBtn('❌ ውድቅ አድርግ', callback_data=f'rj_dep_{rid}'))
+        message = f'🟢 APK የክፍያውን መረጃ አረጋግጧል\\nRequest #{rid}\\n👤 {player["name"]}\\n💵 {amt:.2f} ETB\\n🏦 {expected_provider}\\n🧾 TX: {tx}'
+      else:
+        kb.row(IBtn('❌ ውድቅ አድርግ', callback_data=f'rj_dep_{rid}'))
+        message = f'🔴 የክፍያ መረጃ አልተዛመደም — Approve አይፈቀድም!\\nRequest #{rid}\\n👤 {player["name"]}\\nSMS: {amt:.2f} ETB / {payment_method_label(method)}\\nAPK: {float(event["amount"]):.2f} ETB / {event["provider"]}\\nTX: {tx}'
+      for aid in finance_admin_ids():
+        try: bot.send_message(aid,message,reply_markup=kb)
+        except Exception: pass
+    except Exception as exc:
+      print('Pre-captured payment event review notification failed:',type(exc).__name__,str(exc))
   return {'ok': True, 'amount': amt, 'transaction_id': tx}
 
 
