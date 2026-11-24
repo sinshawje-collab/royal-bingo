@@ -66,6 +66,9 @@ class PaymentNotificationListener : NotificationListenerService() {
         val amountMatch = Regex("(?i)you have received\\s+(?:ETB|Birr|Br\\.?)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)").find(text)
             ?: Regex("(?i)you received\\s+([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)").find(text)
             ?: Regex("(?i)received\\s+(?:ETB|Birr|Br\\.?)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)").find(text)
+            // CBE Birr can notify the recipient as "you have sent XBr. to [account holder]".
+            // Backend confirmation still requires the exact pending TX ID, amount and provider.
+            ?: Regex("(?i)you have sent\\s+([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)\\s+to\\s+").find(text)
             ?: return null
         val amount = amountMatch.groupValues[1].replace(",", "").toDoubleOrNull() ?: return null
 
