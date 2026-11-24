@@ -903,6 +903,9 @@ if bot:
         if not rq or rq['status'] != 'pending': return bot.send_message(call.message.chat.id, '⚠️ ቀድሞ ተወስኗል።')
         uid, amt = rq['uid'], rq['amount']
         if rt == 'dep' and act == 'ap':
+          verified = c.execute("SELECT id FROM payment_sms_events WHERE matched_request_id=? AND match_status='matched' LIMIT 1", (int(rid),)).fetchone()
+          if not verified:
+            return bot.send_message(call.message.chat.id, '❌ APK የክፍያውን Transaction ID፣ Amount እና Provider አላረጋገጠም። እስኪዛመድ ድረስ Approve አይቻልም።')
           c.execute("UPDATE requests SET status='approved' WHERE id=?", (int(rid),))
           c.execute('UPDATE users SET play_wallet=play_wallet+? WHERE uid=?', (amt, uid))
           add_tx(c, uid, '💰', f'ገቢ ጸድቋል ({payment_method_label(rq["method"])})', amt)
@@ -917,6 +920,8 @@ if bot:
         elif rt == 'dep':
           c.execute("UPDATE requests SET status='rejected' WHERE id=?", (int(rid),))
           bot.edit_message_text(call.message.text + '\n\n❌ ተሰርዟል', call.message.chat.id, call.message.message_id)
+          try: bot.send_message(uid, f'❌ የ {amt:.2f} ETB የገቢ ጥያቄዎ ውድቅ ተደርጓል። የክፍያ መረጃውን ያረጋግጡ።')
+          except Exception: pass
         elif rt == 'wd' and act == 'ap':
           if str(rq['details'] or '').startswith('PENDING RESERVED |'):
             cur = c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=? AND play_wallet>=?', (amt, uid, amt))
@@ -1357,6 +1362,9 @@ async def api_admin_deposit_decision(request_id: int, req: Request, x_tg_init_da
       raise HTTPException(409, 'ይህ ጥያቄ ቀድሞ ተወስኗል።')
     uid, amt = int(rq['uid']), float(rq['amount'] or 0)
     if action == 'approve':
+      verified = c.execute("SELECT id FROM payment_sms_events WHERE matched_request_id=? AND match_status='matched' LIMIT 1", (request_id,)).fetchone()
+      if not verified:
+        raise HTTPException(409, 'APK የክፍያውን Transaction ID፣ Amount እና Provider አላረጋገጠም። Approve ማድረግ አይቻልም።')
       c.execute("UPDATE requests SET status='approved' WHERE id=? AND status='pending'", (request_id,))
       c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+? WHERE uid=?', (amt,uid))
       add_tx(c,uid,'💰',f'ገቢ ጸድቋል ({payment_method_label(rq["method"])})',amt)
