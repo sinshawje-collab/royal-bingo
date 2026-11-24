@@ -29,7 +29,7 @@ class PaymentNotificationListener : NotificationListenerService() {
         // Never send airtime, outgoing transfers, or top-ups to the deposit matcher.
         if (lower.contains("airtime") || lower.contains("top-up") || lower.contains("top up")) return null
         if (provider == "TeleBirr" && !(lower.contains("you have received") || lower.contains("received etb") || lower.contains("received birr"))) return null
-        if (provider == "CBE Birr" && !(lower.contains("you have received") || lower.contains("received etb") || lower.contains("credited"))) return null
+        if (provider == "CBE Birr" && !(lower.contains("you have received") || lower.contains("received etb") || lower.contains("credited") || Regex("(?i)you received\\s+[0-9][0-9,]*(?:\\.[0-9]{1,2})?\\s*br\\.").containsMatchIn(text))) return null
         val amountMatch = Regex("(?i)(?:ETB|Birr|Br\\.?)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)").find(text)
             ?: Regex("(?i)([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)").find(text)
             ?: return null
