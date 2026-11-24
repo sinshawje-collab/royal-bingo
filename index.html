@@ -1429,6 +1429,7 @@ function setupAdminSidebar(){
     button.addEventListener('click',function(){
       content.querySelectorAll('.admin-side-section').forEach(function(el){el.classList.toggle('active',el===section);});
       nav.querySelectorAll('.admin-side-btn').forEach(function(el){el.classList.toggle('active',el===button);});
+      if(spec.id==='tools') loadAdminUsers();
     });
     nav.appendChild(button);
   });
