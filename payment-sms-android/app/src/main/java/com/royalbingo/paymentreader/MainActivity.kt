@@ -16,7 +16,6 @@ import java.util.Date
 import java.util.Locale
 
 class MainActivity : Activity() {
-    private lateinit var statusView: TextView
     private lateinit var pairedView: TextView
     private lateinit var accessView: TextView
     private lateinit var listenerView: TextView
@@ -159,7 +158,7 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    override fun onResume() { super.onResume(); if (::statusView.isInitialized) refreshStatus() }
+    override fun onResume() { super.onResume(); if (::prefs.isInitialized) refreshStatus() }
 
     private fun refreshStatus() {
         val component = ComponentName(this, PaymentNotificationListener::class.java)
