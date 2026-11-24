@@ -1312,6 +1312,70 @@ async def api_payment_device_notification(req: Request, authorization: str = Hea
     print('Payment SMS admin notification failed:', type(exc).__name__, str(exc))
   return {'ok': True, 'matched': True, 'match_status': 'matched', 'request_id': int(reqrow['id'])}
 
+
+@app.get('/api/admin/deposits')
+def api_admin_deposits(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  with get_db() as c:
+    rows = c.execute("""
+      SELECT r.id,r.uid,r.amount,r.method,r.details,r.status,r.created_at,r.reference,
+             u.name,u.phone,
+             EXISTS(SELECT 1 FROM payment_sms_events e
+                    WHERE e.matched_request_id=r.id AND e.match_status='matched') AS device_verified
+      FROM requests r JOIN users u ON u.uid=r.uid
+      WHERE r.req_type='deposit' AND r.status='pending'
+      ORDER BY r.created_at DESC LIMIT 100
+    """).fetchall()
+  return {'requests': [
+    {'id':int(x['id']),'uid':int(x['uid']),'name':str(x['name'] or 'Player'),
+     'phone':str(x['phone'] or ''),'amount':round(float(x['amount'] or 0),2),
+     'method':payment_method_label(x['method']),'details':str(x['details'] or ''),
+     'reference':str(x['reference'] or ''),'created_at':int(x['created_at'] or 0),
+     'device_verified':bool(x['device_verified'])}
+    for x in rows
+  ]}
+
+@app.post('/api/admin/deposits/{request_id}/decision')
+async def api_admin_deposit_decision(request_id: int, req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  if not is_finance_admin(u['uid']):
+    raise HTTPException(403, '⏳ የገቢ ማጽደቅ ተራው አሁን የሌላ አድሚን ነው።')
+  body = await req.json()
+  action = str(body.get('action','')).strip().lower() if isinstance(body,dict) else ''
+  if action not in ('approve','reject'):
+    raise HTTPException(400, 'approve ወይም reject ይምረጡ።')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    rq = c.execute("SELECT * FROM requests WHERE id=? AND req_type='deposit'", (request_id,)).fetchone()
+    if not rq:
+      raise HTTPException(404, 'የገቢ ጥያቄው አልተገኘም።')
+    if rq['status'] != 'pending':
+      raise HTTPException(409, 'ይህ ጥያቄ ቀድሞ ተወስኗል።')
+    uid, amt = int(rq['uid']), float(rq['amount'] or 0)
+    if action == 'approve':
+      c.execute("UPDATE requests SET status='approved' WHERE id=? AND status='pending'", (request_id,))
+      c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+? WHERE uid=?', (amt,uid))
+      add_tx(c,uid,'💰',f'ገቢ ጸድቋል ({payment_method_label(rq["method"])})',amt)
+      referrer=c.execute('SELECT referred_by FROM users WHERE uid=?',(uid,)).fetchone()
+      if referrer and referrer['referred_by']:
+        c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+15 WHERE uid=?',(referrer['referred_by'],))
+        c.execute('UPDATE users SET referred_by=NULL WHERE uid=?',(uid,))
+        add_tx(c,referrer['referred_by'],'🎁','የግብዣ ሽልማት',15.0)
+    else:
+      c.execute("UPDATE requests SET status='rejected' WHERE id=? AND status='pending'", (request_id,))
+  try:
+    if bot:
+      note = (f'🎉 የ {amt:.2f} ETB ገቢዎ በአድሚን ጸድቋል። Wallet ተጨምሯል!' if action=='approve'
+              else f'❌ የ {amt:.2f} ETB የገቢ ጥያቄዎ በአድሚን ውድቅ ተደርጓል። እባክዎ የክፍያ መረጃውን ያረጋግጡ።')
+      bot.send_message(uid,note)
+  except Exception as exc:
+    print('Deposit decision player notification failed:',type(exc).__name__,str(exc))
+  return {'ok':True,'status':'approved' if action=='approve' else 'rejected','amount':amt,'uid':uid}
+
 @app.get('/api/admin/profit')
 def api_admin_profit(x_tg_init_data: str = Header(default='')):
   u = auth_user(x_tg_init_data)
