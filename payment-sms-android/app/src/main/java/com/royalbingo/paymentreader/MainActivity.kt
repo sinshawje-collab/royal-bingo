@@ -51,15 +51,14 @@ class MainActivity : Activity() {
             setPadding(dp(16), dp(18), dp(16), dp(18))
             background = rounded(purple, 22)
         }
-        val logo = TextView(this).apply {
-            text = "♛"
-            textSize = 43f
-            gravity = Gravity.CENTER
-            setTextColor(gold)
-            typeface = Typeface.create("serif", Typeface.BOLD)
+        val logo = ImageView(this).apply {
+            setImageResource(R.drawable.royal_bingo_logo)
+            scaleType = ImageView.ScaleType.FIT_CENTER
             background = rounded(Color.rgb(65, 39, 104), 18)
+            setPadding(dp(3), dp(3), dp(3), dp(3))
+            contentDescription = "Royal Bingo official logo"
         }
-        brand.addView(logo, LinearLayout.LayoutParams(dp(72), dp(72)))
+        brand.addView(logo, LinearLayout.LayoutParams(dp(88), dp(88)))
         val brandText = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), 0, 0, 0) }
         brandText.addView(label("ROYAL BINGO", 22f, Color.WHITE, true))
         brandText.addView(label("PAYMENT READER", 12f, gold, true))
