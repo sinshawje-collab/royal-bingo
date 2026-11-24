@@ -556,9 +556,10 @@ ADMIN_REPLY_ACTIONS = {
 }
 
 def adm_kb():
-  # Keep only the Mini App launcher in the persistent admin reply keyboard.
+  # Use a normal reply-keyboard text button; the handler opens a true Telegram Web App inline button.
+  # This avoids clients that fail to launch Web Apps directly from reply keyboards.
   kb = RKB(resize_keyboard=True, row_width=1, is_persistent=True, one_time_keyboard=False)
-  kb.row(KBtn('📱 ወደ Mini App ግባ', web_app=WebAppInfo(url=APP_URL)))
+  kb.row(KBtn('📱 ወደ Mini App ግባ'))
   return kb
 
 def notify_req(rtype, uid, amt, md, det, reference=None):
@@ -605,13 +606,13 @@ if bot:
   @bot.message_handler(func=lambda m: bool(m.text) and m.text.strip() == '📱 ወደ Mini App ግባ')
   def c_admin_miniapp(m):
     uid = getattr(getattr(m, 'from_user', None), 'id', None)
+    print(f'Admin Mini App launcher tapped: uid={uid}, chat={getattr(getattr(m, "chat", None), "id", None)}')
     if not is_adm(uid):
       return bot.reply_to(m, '⛔ ይህ መግቢያ ለተፈቀደላቸው አድሚኖች ብቻ ነው።')
-    # Fallback: if the Telegram client treats the reply-keyboard Web App button as text,
-    # show a proper inline Telegram Web App launch button.
+    # Reply-keyboard buttons send text. Respond with Telegram's supported inline Web App button.
     return bot.send_message(
       m.chat.id,
-      '👑 Admin Mini App ለመክፈት ከታች ያለውን በተን ይጫኑ።',
+      '👑 Admin Mini App ለመክፈት ከታች ያለውን 👑 Admin Mini App ክፈት ይጫኑ።',
       reply_markup=play_kb('👑 Admin Mini App ክፈት')
     )
 
