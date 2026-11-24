@@ -37,7 +37,7 @@ def parse_payment_sms(sms, method):
       tx_match = re.search(r'\bTxn\s*ID\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
   else:
     amount_match = re.search(r'\breceived\s+ETB\s*([0-9][0-9,]*(?:\.\d{1,2})?)', text, re.I)
-    tx_match = re.search(r'\btransaction\s*(?:number|ID)\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
+    tx_match = re.search(r'\btransaction\s*(?:number|ID)\s*(?:is\s+)?[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
   if not amount_match or not tx_match:
     return None
   try:
