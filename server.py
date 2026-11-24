@@ -31,7 +31,7 @@ def parse_payment_sms(sms, method):
     return None
   text = sms.strip()
   if method in ('CBE', 'CbeBirr', 'CBE Birr'):
-    amount_match = re.search(r'\breceived\s+(?:ETB\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:Br|ETB)\b', text, re.I)
+    amount_match = re.search(r'\b(?:received|sent)\s+(?:ETB\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:Br|ETB)\b', text, re.I)
     tx_match = re.search(r'\b(?:Txn\s*ID|Transaction\s*(?:ID|number))\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
     if not tx_match:
       tx_match = re.search(r'\bTxn\s*ID\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
