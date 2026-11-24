@@ -408,7 +408,7 @@ body.light #adminDashboard .admin-room-mini,body.light #adminDashboard .admin-st
       <div class="admin-tool-card" id="adminUsersPanel"><div class="admin-section-head"><div><div class="admin-eyebrow">PLAYER MANAGEMENT</div><div class="admin-section-title">👥 ተጫዋቾች</div></div><button class="admin-room-tab" onclick="loadAdminUsers()">↻ Refresh</button></div><div id="adminUsersList" class="admin-users-list"><div class="admin-empty">ተጫዋቾችን በመጫን ላይ...</div></div></div>
       <div class="admin-tool-card" id="adminWalletPanel"><div class="admin-section-head"><div><div class="admin-eyebrow">WALLET MANAGEMENT</div><div class="admin-section-title">💳 ብር ጨምር / ቀንስ</div></div></div><p class="admin-control-desc">በPlayer ID ወይም በተመዘገበ ስልክ ቁጥር ተጫዋቹን ይፈልጉ።</p><input id="adminWalletPlayer" class="admin-tool-input" type="text" placeholder="Player ID / 09XXXXXXXX" /><input id="adminWalletAmount" class="admin-tool-input" type="number" min="0.01" step="0.01" placeholder="የገንዘብ መጠን (ETB)" /><div class="admin-control-actions"><button class="admin-start-btn" onclick="adjustAdminWallet('add')">➕ ብር ጨምር</button><button class="admin-stop-btn" onclick="adjustAdminWallet('subtract')">➖ ብር ቀንስ</button></div><div id="adminWalletResult" class="admin-safe-note"></div></div>
       <div class="admin-tool-card" id="adminSettingsPanel"><div class="admin-section-head"><div><div class="admin-eyebrow">GAME SETTINGS</div><div class="admin-section-title">⚙️ ዝቅተኛ ተጫዋች ብዛት</div></div></div><p class="admin-control-desc">ሶስቱንም የ10 / 20 / 50 ETB ክፍሎች ይቆጣጠራል።</p><div class="admin-min-player-row"><button class="admin-room-tab" onclick="changeAdminMinPlayers(-1)">➖</button><strong id="adminMinPlayersValue">1</strong><button class="admin-room-tab" onclick="changeAdminMinPlayers(1)">➕</button></div><div class="admin-safe-note">ለውጡ በዳታቤዝ ይቀመጣል።</div></div>
-      <div class="admin-tool-card" id="adminBackupPanel"><div class="admin-section-head"><div><div class="admin-eyebrow">DATABASE SAFETY</div><div class="admin-section-title">💾 DB Backup</div></div></div><p class="admin-control-desc">Royal Bingo ዳታቤዝ Neon PostgreSQL ላይ ይገኛል። Backup ከNeon Console ወይም በpg_dump መውሰድ ይቻላል።</p><div class="admin-safe-note">⚠️ ይህ ፓኔል በቀጥታ Backup ፋይል አይፈጥርም። የዳታቤዝ መረጃ አይሰረዝም።</div></div>
+      <div class="admin-tool-card" id="adminBackupPanel"><div class="admin-section-head"><div><div class="admin-eyebrow">DATABASE SAFETY</div><div class="admin-section-title">💾 DB Backup</div></div></div><p class="admin-control-desc">የRoyal Bingo PostgreSQL ዳታቤዝን ወደ ZIP ፋይል ያውርዱ። በውስጡ ያሉ ሰንጠረዦች በJSON ቅርጽ ይቀመጣሉ።</p><button class="admin-primary-btn" id="adminBackupBtn" onclick="downloadAdminBackup()">📥 DB Backup አውርድ</button><div id="adminBackupResult" class="admin-safe-note">🔒 ለአድሚን ብቻ የተፈቀደ · የዳታቤዝ ይዘት ብቻ ይወሰዳል፤ የመግቢያ ሚስጥሮች አይካተቱም።</div></div>
     </div>
     <div id="lobbyView">
       <div id="lobbyHomeView">
@@ -1010,6 +1010,24 @@ async function adminGameControl(action) {
   } catch(e) { toast('❌ '+e.message); }
   finally { pause.disabled=false; resume.disabled=false; }
 }
+
+async function downloadAdminBackup(){
+  var btn=document.getElementById('adminBackupBtn'), status=document.getElementById('adminBackupResult');
+  if(!adminSessionConfirmed){toast('❌ Admin መግቢያ አልተረጋገጠም');return;}
+  btn.disabled=true;btn.textContent='⏳ Backup በማዘጋጀት ላይ...';status.textContent='ዳታቤዙ እየተነበበ ነው፤ እባክዎ ይጠብቁ።';
+  try{
+    var res=await fetch('/api/admin/backup',{method:'GET',headers:{'X-Tg-Init-Data':initData}});
+    if(!res.ok){var err=await res.json().catch(function(){return {};});throw new Error(err.detail||'Backup ማውረድ አልተቻለም');}
+    var blob=await res.blob();
+    if(!blob.size)throw new Error('Backup ፋይሉ ባዶ ነው');
+    var url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download='royal_bingo_backup_'+new Date().toISOString().replace(/[:.]/g,'-')+'.zip';
+    document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    status.textContent='✅ Backup ZIP ፋይሉ ተዘጋጅቷል። በDownloads ውስጥ ይፈልጉት።';toast('✅ DB Backup ተዘጋጅቷል');
+  }catch(e){status.textContent='❌ '+e.message;toast('❌ '+e.message);}
+  finally{btn.disabled=false;btn.textContent='📥 DB Backup አውርድ';}
+}
+
 async function loadAdminUsers(){
   if(!adminSessionConfirmed)return;
   var box=document.getElementById('adminUsersList');box.innerHTML='<div class="admin-empty">በመጫን ላይ...</div>';
