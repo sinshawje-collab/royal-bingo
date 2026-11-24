@@ -1,4 +1,4 @@
-import base64, hashlib, hmac, io, json, math, os, random, re, secrets, threading, time, urllib.parse
+import base64, hashlib, hmac, io, json, math, os, random, re, secrets, threading, time, urllib.parse, zipfile
 import psycopg
 sqlite3 = psycopg
 from psycopg.rows import dict_row
@@ -1219,6 +1219,41 @@ async def api_admin_games_control(req: Request, x_tg_init_data: str = Header(def
     raise HTTPException(400, 'pause ወይም resume ብቻ ይፈቀዳል!')
   paused = set_games_paused(action == 'pause')
   return {'ok': True, 'games_paused': paused}
+
+
+
+@app.get('/api/admin/backup')
+def api_admin_backup(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  stamp = time.strftime('%Y%m%d_%H%M%S', time.gmtime())
+  archive = io.BytesIO()
+  try:
+    with get_db() as c:
+      c.execute('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY')
+      tables = c.execute("""
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema='public' AND table_type='BASE TABLE'
+        ORDER BY table_name
+      """).fetchall()
+      with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+        manifest = {'database': 'Royal Bingo PostgreSQL', 'created_at_utc': stamp, 'format': 'JSON per table'}
+        zf.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
+        for item in tables:
+          table = str(item['table_name'])
+          safe_table = table.replace('"', '""')
+          rows = c.execute('SELECT * FROM "' + safe_table + '"').fetchall()
+          payload = json.dumps([dict(row) for row in rows], ensure_ascii=False, default=str, indent=2)
+          zf.writestr('tables/' + table + '.json', payload)
+  except Exception as exc:
+    print('Admin database backup failed:', type(exc).__name__, str(exc))
+    raise HTTPException(500, 'DB Backup ማዘጋጀት አልተቻለም። እባክዎ እንደገና ይሞክሩ።')
+  return Response(
+    content=archive.getvalue(),
+    media_type='application/zip',
+    headers={'Content-Disposition': f'attachment; filename="royal_bingo_backup_{stamp}.zip"'}
+  )
 
 
 @app.get('/api/admin/users')
