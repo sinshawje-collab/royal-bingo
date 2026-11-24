@@ -602,6 +602,19 @@ if bot:
       except Exception:
         pass
 
+  @bot.message_handler(func=lambda m: bool(m.text) and m.text.strip() == '📱 ወደ Mini App ግባ')
+  def c_admin_miniapp(m):
+    uid = getattr(getattr(m, 'from_user', None), 'id', None)
+    if not is_adm(uid):
+      return bot.reply_to(m, '⛔ ይህ መግቢያ ለተፈቀደላቸው አድሚኖች ብቻ ነው።')
+    # Fallback: if the Telegram client treats the reply-keyboard Web App button as text,
+    # show a proper inline Telegram Web App launch button.
+    return bot.send_message(
+      m.chat.id,
+      '👑 Admin Mini App ለመክፈት ከታች ያለውን በተን ይጫኑ።',
+      reply_markup=play_kb('👑 Admin Mini App ክፈት')
+    )
+
   @bot.message_handler(commands=['start'])
   def c_start(m):
     ps = (m.text or '').split()
