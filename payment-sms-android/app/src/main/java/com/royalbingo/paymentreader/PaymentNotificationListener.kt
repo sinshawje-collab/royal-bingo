@@ -56,3 +56,5 @@ class PaymentNotificationListener : NotificationListenerService() {
         } catch (_: Exception) { }
     }
 }
+
+// Rebuild trigger: include the latest CBE cash-deposit SMS parser in the companion APK.
