@@ -1424,6 +1424,39 @@ function cpTxt(t, m) {
 }
 
 
+
+function adminEsc(v){
+  return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
+}
+async function loadAdminDeposits(){
+  var host=document.getElementById('adminDepositReview');
+  if(!host) return;
+  host.innerHTML='<div style="padding:14px;text-align:center;color:var(--mut)">⏳ የገቢ ጥያቄዎችን በመፈለግ ላይ...</div>';
+  try{
+    var data=await apiReq('/api/admin/deposits');
+    var items=data.requests||[];
+    if(!items.length){host.innerHTML='<div style="padding:16px;text-align:center;color:var(--mut)">✅ የሚጠብቅ የገቢ ጥያቄ የለም።</div>';return;}
+    host.innerHTML=items.map(function(x){
+      return '<article style="border:1px solid var(--bd);border-radius:14px;padding:12px;margin:9px 0;background:var(--card)">'+
+        '<div style="display:flex;justify-content:space-between;gap:8px"><b>Request #'+x.id+'</b><b style="color:#fbbf24">'+Number(x.amount).toFixed(2)+' ETB</b></div>'+
+        '<div style="font-size:12px;margin-top:7px">👤 '+adminEsc(x.name)+' · '+adminEsc(x.phone||x.uid)+'</div>'+
+        '<div style="font-size:12px;margin-top:4px">🏦 '+adminEsc(x.method)+' · '+(x.device_verified?'🟢 APK ተዛምዷል':'🟠 APK ማረጋገጫ የለም')+'</div>'+
+        '<div style="font-size:11px;color:var(--mut);margin-top:5px">TX: '+adminEsc(x.reference||'—')+'</div>'+
+        '<pre style="white-space:pre-wrap;overflow-wrap:anywhere;font:10px/1.5 inherit;color:var(--mut);max-height:110px;overflow:auto;margin:8px 0">'+adminEsc(x.details)+'</pre>'+
+        '<div style="display:flex;gap:8px"><button class="btnp" style="flex:1;background:#15803d" onclick="decideAdminDeposit('+x.id+',\'approve\')">✅ ፍቀድ</button><button class="btnp" style="flex:1;background:#b91c1c" onclick="decideAdminDeposit('+x.id+',\'reject\')">❌ ውድቅ አድርግ</button></div></article>';
+    }).join('');
+  }catch(e){host.innerHTML='<div style="padding:12px;color:#f87171">❌ '+adminEsc(e.message)+'</div>';}
+}
+async function decideAdminDeposit(id,action){
+  var label=action==='approve'?'ይህን ክፍያ ፈቅደው Wallet ላይ ብር ይጨምሩ?':'ይህን የገቢ ጥያቄ ውድቅ ያድርጉ?';
+  if(!window.confirm(label)) return;
+  try{
+    var result=await apiReq('/api/admin/deposits/'+id+'/decision','POST',{action:action});
+    toast(action==='approve'?'✅ ክፍያው ጸድቋል። Wallet ተጨምሯል።':'❌ የገቢ ጥያቄው ውድቅ ተደርጓል።');
+    await loadAdminDeposits();
+  }catch(e){toast('❌ '+e.message);}
+}
+
 function setupAdminSidebar(){
   var dashboard=document.getElementById('adminDashboard');
   if(!dashboard || dashboard.dataset.sidebarReady==='1') return;
@@ -1454,13 +1487,20 @@ function setupAdminSidebar(){
     button.addEventListener('click',function(){
       content.querySelectorAll('.admin-side-section').forEach(function(el){el.classList.toggle('active',el===section);});
       nav.querySelectorAll('.admin-side-btn').forEach(function(el){el.classList.toggle('active',el===button);});
-      if(spec.id==='tools') loadAdminUsers();
+      if(spec.id==='tools') loadAdminUsers(); if(spec.id==='finance') loadAdminDeposits();
     });
     nav.appendChild(button);
   });
   var finance=document.getElementById('financeRotationBox');
   var broadcast=document.getElementById('adminBroadcast');
   if(finance) document.getElementById('adminSection-finance').appendChild(finance);
+  var review=document.createElement('div'); review.id='adminDepositReview';
+  review.style.cssText='margin-top:12px';
+  var reviewHead=document.createElement('div'); reviewHead.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px';
+  reviewHead.innerHTML='<strong style="font-size:14px">💳 የገቢ ማረጋገጫ</strong><button class="btnp" style="padding:8px 12px" onclick="loadAdminDeposits()">🔄 Refresh</button>';
+  review.appendChild(reviewHead);
+  document.getElementById('adminSection-finance').appendChild(review);
+
   if(broadcast) document.getElementById('adminSection-broadcast').appendChild(broadcast);
 }
 
