@@ -174,6 +174,10 @@ def init_db():
       "CREATE INDEX IF NOT EXISTS idx_requests_uid_pending ON requests(uid, req_type, status, id DESC)",
       # Support phone verification/lookups and the public top-winners list.
       "CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone IS NOT NULL",
+      """CREATE TABLE IF NOT EXISTS payment_pairing_codes (code_hash TEXT PRIMARY KEY, created_by BIGINT NOT NULL, expires_at BIGINT NOT NULL, used_at BIGINT)""",
+      """CREATE TABLE IF NOT EXISTS payment_devices (id BIGSERIAL PRIMARY KEY, token_hash TEXT UNIQUE NOT NULL, label TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at BIGINT NOT NULL, last_seen BIGINT)""",
+      """CREATE TABLE IF NOT EXISTS payment_sms_events (id BIGSERIAL PRIMARY KEY, provider TEXT NOT NULL, transaction_id TEXT NOT NULL UNIQUE, amount DOUBLE PRECISION NOT NULL, received_at BIGINT NOT NULL, matched_request_id BIGINT, match_status TEXT NOT NULL, created_at BIGINT NOT NULL)""",
+      "CREATE INDEX IF NOT EXISTS idx_payment_sms_match ON payment_sms_events(match_status, created_at DESC)",
       "CREATE INDEX IF NOT EXISTS idx_users_top_winners ON users(total_won DESC) WHERE total_won > 0"
     ]
     for statement in statements:
@@ -1195,6 +1199,92 @@ async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
   except sqlite3.IntegrityError: raise HTTPException(409, 'ይህ Transaction ID ቀድሞ ተጠቅሟል!')
   return {'ok': True}
 
+
+# Admin pairs the Android companion app using a short-lived one-time code.
+@app.post('/api/admin/payment-device/pair-code')
+def api_payment_device_pair_code(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  code = ''.join(secrets.choice('23456789ABCDEFGHJKLMNPQRSTUVWXYZ') for _ in range(8))
+  digest = hashlib.sha256(code.encode()).hexdigest()
+  now = int(time.time())
+  with get_db() as c:
+    c.execute('UPDATE payment_pairing_codes SET used_at=? WHERE created_by=? AND used_at IS NULL', (now, u['uid']))
+    c.execute('INSERT INTO payment_pairing_codes(code_hash,created_by,expires_at,used_at) VALUES(?,?,?,NULL)', (digest, u['uid'], now + 300))
+  return {'ok': True, 'pairing_code': code, 'expires_in_seconds': 300}
+
+@app.post('/api/payment-device/enroll')
+async def api_payment_device_enroll(req: Request):
+  body = await req.json()
+  code = str(body.get('pairing_code', '')).strip().upper() if isinstance(body, dict) else ''
+  label = str(body.get('label', 'Royal Bingo Admin Phone')).strip()[:80]
+  if len(code) != 8:
+    raise HTTPException(400, 'የPairing Code ትክክል አይደለም!')
+  now = int(time.time())
+  digest = hashlib.sha256(code.encode()).hexdigest()
+  token = secrets.token_urlsafe(40)
+  with get_db() as c:
+    row = c.execute('SELECT code_hash,created_by,expires_at,used_at FROM payment_pairing_codes WHERE code_hash=?', (digest,)).fetchone()
+    if not row or row['used_at'] is not None or int(row['expires_at']) < now:
+      raise HTTPException(400, 'Pairing Code ጊዜው አልፏል ወይም ተጠቅሟል። አዲስ Code ይፍጠሩ።')
+    c.execute('UPDATE payment_pairing_codes SET used_at=? WHERE code_hash=? AND used_at IS NULL', (now, digest))
+    c.execute('INSERT INTO payment_devices(token_hash,label,active,created_at) VALUES(?,?,1,?)', (hashlib.sha256(token.encode()).hexdigest(), label or 'Royal Bingo Admin Phone', now))
+  return {'ok': True, 'device_token': token, 'message': 'Token አንድ ጊዜ ብቻ ይታያል፤ በስልኩ ውስጥ በደህና ያስቀምጡት።'}
+
+@app.post('/api/payment-device/notification')
+async def api_payment_device_notification(req: Request, authorization: str = Header(default='')):
+  if not authorization.startswith('Bearer '):
+    raise HTTPException(401, 'Device authentication required')
+  token = authorization[7:].strip()
+  if len(token) < 40:
+    raise HTTPException(401, 'Invalid device token')
+  token_hash = hashlib.sha256(token.encode()).hexdigest()
+  body = await req.json()
+  if not isinstance(body, dict):
+    raise HTTPException(400, 'Invalid notification data')
+  provider = str(body.get('provider', '')).strip()
+  txid = str(body.get('transaction_id', '')).strip()
+  try:
+    amount = float(body.get('amount'))
+    received_at = int(body.get('received_at') or time.time())
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'Amount or timestamp is invalid')
+  if provider not in ('TeleBirr', 'CBE Birr') or not math.isfinite(amount) or amount <= 0 or amount > 10000000 or len(txid) < 4 or len(txid) > 120:
+    raise HTTPException(400, 'Provider, amount or transaction ID is invalid')
+  now = int(time.time())
+  with get_db() as c:
+    device = c.execute('SELECT id FROM payment_devices WHERE token_hash=? AND active=1', (token_hash,)).fetchone()
+    if not device:
+      raise HTTPException(401, 'Device is not paired or has been revoked')
+    c.execute('UPDATE payment_devices SET last_seen=? WHERE id=?', (now, device['id']))
+    try:
+      c.execute('INSERT INTO payment_sms_events(provider,transaction_id,amount,received_at,matched_request_id,match_status,created_at) VALUES(?,?,?,?,NULL,?,?)',
+                (provider, txid, amount, received_at, 'unmatched', now))
+    except sqlite3.IntegrityError:
+      return {'ok': True, 'duplicate': True, 'match_status': 'duplicate'}
+    reqrow = c.execute("SELECT id,uid,amount,method FROM requests WHERE req_type='deposit' AND status='pending' AND lower(reference)=lower(?) ORDER BY id DESC LIMIT 1", (txid,)).fetchone()
+    if not reqrow:
+      return {'ok': True, 'matched': False, 'match_status': 'no_pending_transaction'}
+    expected_method = payment_method_label(reqrow['method'])
+    if abs(float(reqrow['amount'] or 0) - amount) > 0.01 or expected_method != provider:
+      c.execute("UPDATE payment_sms_events SET match_status='details_mismatch' WHERE transaction_id=?", (txid,))
+      return {'ok': True, 'matched': False, 'match_status': 'details_mismatch'}
+    c.execute("UPDATE payment_sms_events SET matched_request_id=?,match_status='matched' WHERE transaction_id=?", (reqrow['id'], txid))
+    c.execute("UPDATE requests SET details=details || ? WHERE id=?", (f' | SMS VERIFIED: {provider}, {amount:.2f} ETB, TX {txid}', reqrow['id']))
+  # Notify admins outside the database transaction. Existing approve callback remains the only way to credit wallet.
+  try:
+    if bot:
+      u = ensure_user(reqrow['uid'])
+      kb = IKB(); kb.row(IBtn('✅ ክፍያውን አረጋግጥ / ፍቀድ', callback_data=f'ap_dep_{reqrow["id"]}'),
+                         IBtn('❌ ውድቅ አድርግ', callback_data=f'rj_dep_{reqrow["id"]}'))
+      msg = f'🟢 SMS ከስልክ ተዛምዷል\n\nRequest #{reqrow["id"]}\n👤 {u["name"]}\n💵 {amount:.2f} ETB\n🏦 {provider}\n🧾 TX: {txid}\n\nWallet የሚጨመረው ከአድሚን ፈቃድ በኋላ ብቻ ነው።'
+      for aid in finance_admin_ids():
+        try: bot.send_message(aid, msg, reply_markup=kb)
+        except Exception: pass
+  except Exception as exc:
+    print('Payment SMS admin notification failed:', type(exc).__name__, str(exc))
+  return {'ok': True, 'matched': True, 'match_status': 'matched', 'request_id': int(reqrow['id'])}
 
 @app.get('/api/admin/profit')
 def api_admin_profit(x_tg_init_data: str = Header(default='')):
