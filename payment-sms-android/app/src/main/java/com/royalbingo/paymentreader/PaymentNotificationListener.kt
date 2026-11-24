@@ -25,13 +25,17 @@ class PaymentNotificationListener : NotificationListenerService() {
             lower.contains("cbe birr") || lower.contains("commercial bank of ethiopia") -> "CBE Birr"
             else -> return null
         }
+        // The supplied CBE sample is an AIRTIME transfer, not a cash deposit.
+        // Never send airtime, outgoing transfers, or top-ups to the deposit matcher.
+        if (lower.contains("airtime") || lower.contains("top-up") || lower.contains("top up")) return null
         if (provider == "TeleBirr" && !(lower.contains("you have received") || lower.contains("received etb") || lower.contains("received birr"))) return null
         if (provider == "CBE Birr" && !(lower.contains("you have received") || lower.contains("received etb") || lower.contains("credited"))) return null
-        val amountMatch = Regex("(?i)(?:ETB|Birr)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)").find(text)
-            ?: Regex("(?i)([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr)").find(text)
+        val amountMatch = Regex("(?i)(?:ETB|Birr|Br\\.?)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)").find(text)
+            ?: Regex("(?i)([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)").find(text)
             ?: return null
         val amount = amountMatch.groupValues[1].replace(",", "").toDoubleOrNull() ?: return null
         val tx = Regex("(?i)(?:transaction\\s*(?:number|id|no\\.?|#)?|txn\\s*(?:id|no\\.?)?)\\s*(?:is|:|#)?\\s*([A-Z0-9-]{6,32})").find(text)
+            ?: Regex("(?i)\\bTID=([A-Z0-9-]{6,32})").find(text)
             ?: Regex("(?i)transaction[^A-Z0-9]{0,20}([A-Z0-9]{6,32})").find(text)
             ?: return null
         val txid = tx.groupValues[1].uppercase(Locale.ROOT)
