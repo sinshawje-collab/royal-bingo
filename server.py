@@ -25,6 +25,30 @@ CBE_NAME = os.environ.get('CBE_BIRR_NAME', 'Sinshaw Jemaneh Eshete')
 CBE_PHONE = os.environ.get('CBE_BIRR_PHONE', '0941882333')
 
 
+def parse_payment_sms(sms, method):
+  """Extract only amount and transaction ID from a pasted payment SMS."""
+  if not isinstance(sms, str) or len(sms.strip()) < 20 or len(sms) > 5000:
+    return None
+  text = sms.strip()
+  if method in ('CBE', 'CbeBirr', 'CBE Birr'):
+    amount_match = re.search(r'\breceived\s+(?:ETB\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:Br|ETB)\b', text, re.I)
+    tx_match = re.search(r'\b(?:Txn\s*ID|Transaction\s*(?:ID|number))\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
+    if not tx_match:
+      tx_match = re.search(r'\bTxn\s*ID\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
+  else:
+    amount_match = re.search(r'\breceived\s+ETB\s*([0-9][0-9,]*(?:\.\d{1,2})?)', text, re.I)
+    tx_match = re.search(r'\btransaction\s*(?:number|ID)\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
+  if not amount_match or not tx_match:
+    return None
+  try:
+    amount = float(amount_match.group(1).replace(',', ''))
+  except (TypeError, ValueError):
+    return None
+  txid = tx_match.group(1).strip().rstrip('.,;:')
+  if not math.isfinite(amount) or amount <= 0 or len(txid) < 4:
+    return None
+  return amount, txid
+
 def payment_method_label(method):
   """Use the public-facing payment provider name consistently."""
   return 'CbeBirr' if str(method or '').strip() in ('CBE', 'CBE Birr', 'CbeBirr') else str(method or 'TeleBirr').strip()
@@ -709,31 +733,6 @@ if bot:
   def c_bal(m):
     u = ensure_user(m.from_user.id, m.from_user.first_name or 'Player')
     bot.send_message(m.chat.id, f'💰 ጠቅላላ ባላንስ: {u["play_wallet"]+u["win_wallet"]:.2f} ETB', reply_markup=play_kb('🎮 Play'))
-
-def parse_payment_sms(sms, method):
-  """Extract only amount and transaction ID from a pasted payment SMS."""
-  if not isinstance(sms, str) or len(sms.strip()) < 20 or len(sms) > 5000:
-    return None
-  text = sms.strip()
-  if method in ('CBE', 'CbeBirr', 'CBE Birr'):
-    amount_match = re.search(r'\breceived\s+(?:ETB\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:Br|ETB)\b', text, re.I)
-    tx_match = re.search(r'\b(?:Txn\s*ID|Transaction\s*(?:ID|number))\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
-    if not tx_match:
-      tx_match = re.search(r'\bTxn\s*ID\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
-  else:
-    amount_match = re.search(r'\breceived\s+ETB\s*([0-9][0-9,]*(?:\.\d{1,2})?)', text, re.I)
-    tx_match = re.search(r'\btransaction\s*(?:number|ID)\s*[:#]?\s*([A-Z0-9-]{4,120})', text, re.I)
-  if not amount_match or not tx_match:
-    return None
-  try:
-    amount = float(amount_match.group(1).replace(',', ''))
-  except (TypeError, ValueError):
-    return None
-  txid = tx_match.group(1).strip().rstrip('.,;:')
-  if not math.isfinite(amount) or amount <= 0 or len(txid) < 4:
-    return None
-  return amount, txid
-
 
   @bot.message_handler(commands=['deposit'])
   @bot.message_handler(func=lambda m: m.text in ('💰 ገቢ (Deposit)', '💳 Deposit'))
