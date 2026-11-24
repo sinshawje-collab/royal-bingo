@@ -2,7 +2,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
-        android:label="Royal Bingo Payment Reader"
+        android:label="Royal Bingo Reader"
+        android:icon="@drawable/royal_bingo_icon"
+        android:roundIcon="@drawable/royal_bingo_icon"
         android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
