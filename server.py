@@ -1220,6 +1220,66 @@ async def api_admin_games_control(req: Request, x_tg_init_data: str = Header(def
   paused = set_games_paused(action == 'pause')
   return {'ok': True, 'games_paused': paused}
 
+
+@app.get('/api/admin/users')
+def api_admin_users(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  with get_db() as c:
+    rows = c.execute('SELECT uid,name,phone,play_wallet,win_wallet,matches_played,wins,created_at FROM users ORDER BY created_at DESC LIMIT 100').fetchall()
+  return {'users': [
+    {'uid': int(r['uid']), 'name': str(r['name'] or 'Player'), 'phone': str(r['phone'] or ''),
+     'wallet': round(float(r['play_wallet'] or 0) + float(r['win_wallet'] or 0), 2),
+     'matches_played': int(r['matches_played'] or 0), 'wins': int(r['wins'] or 0)}
+    for r in rows
+  ]}
+
+@app.post('/api/admin/wallet/adjust')
+async def api_admin_wallet_adjust(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  body = await req.json()
+  player_id = str(body.get('player_id', '')).strip() if isinstance(body, dict) else ''
+  action = body.get('action') if isinstance(body, dict) else None
+  try:
+    amount = float(body.get('amount', 0))
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
+  if not player_id or len(player_id) > 32 or action not in ('add', 'subtract') or not math.isfinite(amount) or amount <= 0 or amount > 1000000:
+    raise HTTPException(400, 'Player ID እና ከ0 በላይ ትክክለኛ መጠን ያስገቡ!')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    row = c.execute('SELECT uid,phone FROM users WHERE phone=?', (player_id,)).fetchone()
+    if not row and player_id.isdigit():
+      row = c.execute('SELECT uid,phone FROM users WHERE uid=?', (int(player_id),)).fetchone()
+    if not row:
+      raise HTTPException(404, 'ይህ Player ID አልተገኘም!')
+    uid = int(row['uid'])
+    if action == 'add':
+      c.execute('UPDATE users SET play_wallet=play_wallet+? WHERE uid=?', (amount, uid))
+      add_tx(c, uid, '🎁', 'አድሚን ጨምሯል', amount)
+    else:
+      c.execute('UPDATE users SET play_wallet=GREATEST(0,play_wallet-?) WHERE uid=?', (amount, uid))
+      add_tx(c, uid, '➖', 'አድሚን ቀንሷል', -amount)
+    updated = c.execute('SELECT play_wallet,win_wallet FROM users WHERE uid=?', (uid,)).fetchone()
+  return {'ok': True, 'uid': uid, 'phone': str(row['phone'] or ''), 'wallet': round(float(updated['play_wallet'] or 0) + float(updated['win_wallet'] or 0), 2)}
+
+@app.post('/api/admin/settings/min-players')
+async def api_admin_min_players(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  body = await req.json()
+  try:
+    value = int(body.get('value', MIN_PLAYERS)) if isinstance(body, dict) else MIN_PLAYERS
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'ትክክለኛ ቁጥር ያስገቡ!')
+  if value < 1 or value > 400:
+    raise HTTPException(400, 'ዝቅተኛ ተጫዋች ከ1 እስከ 400 መሆን አለበት!')
+  return {'ok': True, 'min_players': set_min_players(value)}
+
 @app.post('/api/admin/finance/switch')
 async def api_admin_finance_switch(x_tg_init_data: str = Header(default='')):
   u = auth_user(x_tg_init_data)
