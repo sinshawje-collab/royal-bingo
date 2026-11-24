@@ -59,17 +59,17 @@ class PaymentNotificationListener : NotificationListenerService() {
             else -> return null
         }
         if (lower.contains("airtime") || lower.contains("top-up") || lower.contains("top up")) return null
-        if (provider == "TeleBirr" && !(lower.contains("you have received") || lower.contains("received etb") || lower.contains("received birr"))) return null
-        if (provider == "CBE Birr" && !(lower.contains("you have received") || lower.contains("received etb") || lower.contains("credited") || Regex("(?i)you received\\s+[0-9][0-9,]*(?:\\.[0-9]{1,2})?\\s*br\\.").containsMatchIn(text))) return null
 
-        // Anchor amount extraction to the received-money phrase, never the account balance.
-        val amountMatch = Regex("(?i)you have received\\s+(?:ETB|Birr|Br\\.?)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)").find(text)
-            ?: Regex("(?i)you received\\s+([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)").find(text)
-            ?: Regex("(?i)received\\s+(?:ETB|Birr|Br\\.?)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)").find(text)
-            // CBE Birr can notify the recipient as "you have sent XBr. to [account holder]".
-            // Backend confirmation still requires the exact pending TX ID, amount and provider.
-            ?: Regex("(?i)you have sent\\s+([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)\\s+to\\s+").find(text)
-            ?: return null
+        // Accept common incoming-payment wording from both providers, including ETB/Birr/Br formats.
+        // A sender-side "sent to" alert is also parsed; the server only matches it to an exact
+        // pending deposit by transaction ID, amount and selected provider before admin approval.
+        val amountMatch =
+            Regex("(?i)you have received\\s+(?:ETB\\s*)?([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)?").find(text)
+                ?: Regex("(?i)you received\\s+([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)").find(text)
+                ?: Regex("(?i)received\\s+(?:ETB|Birr|Br\\.?)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)").find(text)
+                ?: Regex("(?i)you have sent\\s+([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)\\s+to\\s+").find(text)
+                ?: Regex("(?i)you sent\\s+([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)\\s+to\\s+").find(text)
+                ?: return null
         val amount = amountMatch.groupValues[1].replace(",", "").toDoubleOrNull() ?: return null
 
         val tx = Regex("(?i)(?:transaction\\s*(?:number|id|no\\.?|#)?|txn\\s*(?:id|no\\.?)?)\\s*(?:is|:|#)?\\s*([A-Z0-9-]{6,32})").find(text)
