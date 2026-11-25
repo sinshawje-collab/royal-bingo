@@ -159,6 +159,10 @@ def get_db_pool():
           min_size=1,
           max_size=10,
           timeout=10,
+          max_idle=60,
+          # Neon may close idle TLS connections while the app is running.
+          # Validate a pooled connection before handing it to a request/handler.
+          check=ConnectionPool.check_connection,
           kwargs={'row_factory': dict_row, 'connect_timeout': 15},
           open=True
         )
@@ -649,7 +653,16 @@ if bot:
     ps = (m.text or '').split()
     ref = int(ps[1]) if len(ps) > 1 and ps[1].isdigit() and int(ps[1]) != m.from_user.id else None
     telegram_name = ' '.join(x for x in [m.from_user.first_name, m.from_user.last_name] if x) or 'Player'
-    u = ensure_user(m.from_user.id, telegram_name, ref)
+    try:
+      u = ensure_user(m.from_user.id, telegram_name, ref)
+    except Exception as exc:
+      # Do not leave /start unanswered when Neon drops an idle pooled connection.
+      print(f'/start database lookup failed for uid={m.from_user.id}: {type(exc).__name__}: {exc}')
+      try:
+        bot.send_message(m.chat.id, '⚠️ ምዝገባውን ለጊዜው ማስኬድ አልተቻለም። እባክዎ ከጥቂት ሰከንዶች በኋላ /start እንደገና ይላኩ።')
+      except Exception as send_exc:
+        print(f'/start error reply failed: {type(send_exc).__name__}: {send_exc}')
+      return
     # Administrators enter the control panel directly; no player registration or Play button required.
     if is_adm(m.from_user.id):
       bot.send_message(m.chat.id, '👑 ROYAL BINGO — እንኳን ወደ Admin Control Center በደህና መጡ!', reply_markup=play_kb('📱 ወደ Mini App ግባ'))
