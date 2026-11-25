@@ -338,6 +338,69 @@ body.light #adminDashboard .admin-room-mini,body.light #adminDashboard .admin-st
  #adminDashboard .admin-room-overview,#adminDashboard .admin-room-stats{gap:5px}
 }
 
+
+/* ROYAL BINGO — Signature Edition UI polish (visual-only; gameplay logic untouched) */
+:root{
+ --bg:#070b18;--card:#10182b;--card2:#151f36;--el:#202c48;
+ --bd:rgba(174,190,230,.15);--bdg:rgba(246,195,74,.52);
+ --txt:#f7f8ff;--mut:#a8b4cf;--dim:#7886a5;
+ --gold:#f4bd4b;--gold2:#ffe08a;
+ --ggrad:linear-gradient(135deg,#fff0a6 0%,#f5c451 38%,#c98220 100%);
+ --em:#34d399;--egrad:linear-gradient(135deg,#10b981,#047857);
+ --nav:rgba(7,11,24,.94);--sh:0 12px 30px rgba(0,0,0,.25);
+}
+html,body{background:radial-gradient(ellipse at 50% -18%,rgba(94,65,164,.34),transparent 43%),linear-gradient(180deg,#080d1d,#070b18 62%,#090e1e);background-attachment:fixed}
+body{letter-spacing:.05px}
+.app{max-width:520px;padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+.hero-banner{width:calc(100% - 24px);max-width:480px;margin:12px auto 10px;border:1px solid rgba(246,195,74,.28);border-radius:22px;overflow:hidden;box-shadow:0 14px 34px rgba(0,0,0,.28),0 0 24px rgba(124,58,237,.12)}
+.hdr{position:sticky;top:0;z-index:55;margin:0 12px 12px;padding:10px 12px;border:1px solid rgba(174,190,230,.16);border-radius:18px;background:rgba(10,15,31,.88);backdrop-filter:blur(20px) saturate(150%);box-shadow:0 8px 26px rgba(0,0,0,.22)}
+.badge{border-radius:14px}.btitle{font-size:16px;letter-spacing:1px;color:#ffe08a}
+.live-pill{letter-spacing:.6px}
+.ibtn{width:40px;height:40px;border-radius:13px;background:linear-gradient(145deg,#1c2944,#10182b);border-color:var(--bd);font-size:17px}
+.wchip{min-height:40px;padding:7px 13px;background:linear-gradient(135deg,rgba(245,196,81,.18),rgba(124,58,237,.12));border-color:rgba(246,195,74,.36);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.tab{padding:7px 13px 20px}.srow4,.srow3{gap:9px;margin-bottom:12px}
+.sbox{border:1px solid rgba(174,190,230,.15);border-radius:17px;padding:12px 5px;background:linear-gradient(150deg,rgba(24,35,60,.96),rgba(13,20,38,.98));box-shadow:0 8px 20px rgba(0,0,0,.17),inset 0 1px 0 rgba(255,255,255,.035)}
+.slbl{font-size:9px;letter-spacing:1px;color:#aab8d4}.sval{font-size:16px;font-variant-numeric:tabular-nums}
+.status-banner{border-radius:15px;padding:13px 12px;margin-bottom:14px;line-height:1.55}
+.tier-head{display:flex;align-items:center;gap:8px;margin:17px 2px 11px;color:#ffe08a;font-size:11px;font-weight:950;letter-spacing:2px}
+.tier-spark{color:#f6c451;font-size:18px}
+.tier-list{display:grid;gap:11px}
+.tier-card{position:relative;overflow:hidden;border:1px solid rgba(174,190,230,.17)!important;border-radius:19px!important;padding:14px!important;background:linear-gradient(145deg,rgba(25,36,62,.98),rgba(12,19,37,.98))!important;box-shadow:0 10px 25px rgba(0,0,0,.2),inset 0 1px 0 rgba(255,255,255,.04);transition:transform .18s,border-color .18s,box-shadow .18s}
+.tier-card:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:linear-gradient(180deg,#ffe08a,#a78bfa);opacity:.72}
+.tier-card.active{border-color:rgba(246,195,74,.62)!important;box-shadow:0 0 0 1px rgba(246,195,74,.12),0 12px 28px rgba(0,0,0,.24),0 0 24px rgba(246,195,74,.08)}
+.tier-main{gap:11px}.tier-coin{width:43px!important;height:43px!important;border-radius:14px!important;background:linear-gradient(145deg,#ffe08a,#d28a24)!important;color:#191326!important;box-shadow:0 6px 16px rgba(245,190,75,.2)}
+.tier-info strong{font-size:19px!important;letter-spacing:.3px}.tier-info span{font-size:10px!important;color:#aebbd5!important}
+.tier-stats{margin:12px 0 10px!important;padding-top:10px;border-top:1px solid rgba(174,190,230,.11);color:#b8c4dc!important;font-size:11px!important}
+.tier-join{min-height:42px!important;border-radius:12px!important;background:linear-gradient(110deg,#ffe08a,#e4a83d 58%,#bd781f)!important;color:#171326!important;font-weight:950!important;letter-spacing:1px;box-shadow:0 6px 16px rgba(225,166,58,.2)!important}
+button,.nbtn,.spill,.apill,.qbtn,.tbtn{transition:transform .15s ease,filter .15s ease,box-shadow .15s ease}
+button:active,.tier-join:active,.nbtn:active{transform:scale(.975);filter:brightness(1.08)}
+.scard,.wsub,.hitem,.rrow,.gwrap,.mstr,.cstage,.pcard,.scard,.admin-tool-card{border-radius:17px}
+.scard{padding:16px;border-color:var(--bd);background:linear-gradient(150deg,#151f36,#0d1528)}
+.rinp,.msgbox,.admin-tool-input{border-radius:13px;border-color:rgba(174,190,230,.2);background:#0b1326;padding:13px;color:var(--txt)}
+.rinp:focus,.msgbox:focus,.admin-tool-input:focus{border-color:rgba(246,195,74,.7);box-shadow:0 0 0 3px rgba(246,195,74,.1)}
+.btnp,.btnd,.btnw{min-height:44px;border-radius:13px;font-weight:900;letter-spacing:.15px}
+.wsub{border-color:rgba(174,190,230,.15);background:linear-gradient(145deg,#192541,#10182b);padding:14px 10px}
+.wsub .a{font-size:22px;font-variant-numeric:tabular-nums}
+.bnav{max-width:520px;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:rgba(7,11,24,.94);backdrop-filter:blur(22px) saturate(150%);border-top:1px solid rgba(174,190,230,.14);box-shadow:0 -10px 28px rgba(0,0,0,.22)}
+.nbtn{min-height:51px;border-radius:13px;font-size:10px;gap:4px}.nbtn .ni{font-size:20px}.nbtn.on{color:#ffe08a;background:linear-gradient(145deg,rgba(246,195,74,.16),rgba(124,58,237,.14));box-shadow:inset 0 0 0 1px rgba(246,195,74,.16)}
+.gwrap{padding:10px;border-color:rgba(174,190,230,.15);background:linear-gradient(145deg,#141f36,#0c1427)}
+.gnum{border-radius:9px;font-size:12px;background:#18243d;border-color:rgba(174,190,230,.12)}
+.gnum.sel,.gnum.optimistic-sel{box-shadow:0 0 14px rgba(246,195,74,.28)}
+.pcard{padding:8px;border-radius:14px}.pc{border-radius:7px}
+.toast{top:calc(12px + env(safe-area-inset-top));padding:11px 17px;box-shadow:0 10px 28px rgba(0,0,0,.35);backdrop-filter:blur(12px)}
+.wov{padding:22px;background:rgba(4,7,17,.88);backdrop-filter:blur(18px)}
+.wbox{border-radius:20px;box-shadow:0 16px 40px rgba(0,0,0,.35)}
+.admin-side-nav{max-width:520px;padding-bottom:calc(8px + env(safe-area-inset-bottom));background:rgba(9,13,29,.96);backdrop-filter:blur(20px);border-top:1px solid rgba(174,190,230,.17)}
+.admin-side-btn{border-radius:12px}.admin-side-btn.active{background:linear-gradient(145deg,rgba(246,195,74,.16),rgba(124,58,237,.18))}
+#adminDashboard .admin-control-card,#adminDashboard .admin-overview-card{border-radius:20px}
+body.light{--bg:#f4f6fc;--card:#fff;--card2:#f8faff;--txt:#17213a;--mut:#52617e;--dim:#7886a5;--bd:rgba(39,55,91,.13);--nav:rgba(249,250,255,.94)}
+body.light html,body.light{background:linear-gradient(180deg,#f4f6fc,#e9eef8)}
+body.light .hdr{background:rgba(250,251,255,.92);border-color:rgba(39,55,91,.12)}
+body.light .sbox,body.light .tier-card,body.light .scard,body.light .wsub{background:linear-gradient(145deg,#fff,#f3f6fc)!important;border-color:rgba(39,55,91,.12)!important}
+body.light .rinp,body.light .msgbox,body.light .admin-tool-input{background:#fff;color:#17213a}
+@media(min-width:600px){.app{max-width:520px}.hdr{margin-top:8px}.tab{padding-left:16px;padding-right:16px}}
+@media(max-width:360px){.app{padding-bottom:calc(84px + env(safe-area-inset-bottom))}.hdr{margin-left:8px;margin-right:8px}.tab{padding-left:9px;padding-right:9px}.sbox{padding:10px 3px}.sval{font-size:14px}.tier-card{padding:12px!important}}
+
 </style>
 </head>
 <body>
