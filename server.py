@@ -180,7 +180,7 @@ def init_db():
     statements = [
       """CREATE TABLE IF NOT EXISTS users (uid BIGINT PRIMARY KEY, name TEXT DEFAULT 'Player', phone TEXT,
         play_wallet DOUBLE PRECISION DEFAULT 0, win_wallet DOUBLE PRECISION DEFAULT 0, matches_played INTEGER DEFAULT 0,
-        wins INTEGER DEFAULT 0, total_won DOUBLE PRECISION DEFAULT 0, referred_by BIGINT, created_at BIGINT, apk_password_hash TEXT)\"\"\",
+        wins INTEGER DEFAULT 0, total_won DOUBLE PRECISION DEFAULT 0, referred_by BIGINT, created_at BIGINT, apk_password_hash TEXT)""",
       """CREATE TABLE IF NOT EXISTS transactions (id BIGSERIAL PRIMARY KEY, uid BIGINT, icon TEXT,
         title TEXT, amount DOUBLE PRECISION, created_at BIGINT)""",
       """CREATE TABLE IF NOT EXISTS requests (id BIGSERIAL PRIMARY KEY, req_type TEXT, uid BIGINT,
