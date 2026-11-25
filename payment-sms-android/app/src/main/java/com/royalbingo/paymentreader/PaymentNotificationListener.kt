@@ -44,8 +44,10 @@ class PaymentNotificationListener : NotificationListenerService() {
 
         val parsed = parsePayment(parts.joinToString(" ")) ?: return
         prefs.edit().putString("last_payment_status", "Recognized ${parsed.optString("provider")} payment (${parsed.optString("amount")} ETB)").apply()
+        PaymentStore.recordDetected(this, parsed)
         val token = prefs.getString("device_token", null) ?: run {
             prefs.edit().putString("last_server_status", "Not paired").apply()
+            PaymentStore.updateResult(this, parsed.optString("transaction_id"), "Not paired", "NOT PAIRED")
             return
         }
         Thread { send(parsed, token) }.start()
@@ -84,6 +86,7 @@ class PaymentNotificationListener : NotificationListenerService() {
 
     private fun send(data: JSONObject, token: String) {
         var result = "Send failed"
+        var matchStatus = "FAILED"
         try {
             val c = (URL("https://royal-bingo-9u3a.onrender.com/api/payment-device/notification").openConnection() as HttpURLConnection)
             c.requestMethod = "POST"
@@ -99,6 +102,7 @@ class PaymentNotificationListener : NotificationListenerService() {
             result = if (code in 200..299) {
                 val payload = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
                 val match = payload.optString("match_status", "")
+                matchStatus = match.uppercase(Locale.ROOT).ifBlank { "RECEIVED" }
                 when (match) {
                     "matched" -> "HTTP $code · PAYMENT MATCHED"
                     "details_mismatch" -> "HTTP $code · DETAILS MISMATCH"
@@ -117,5 +121,6 @@ class PaymentNotificationListener : NotificationListenerService() {
             .putString("last_server_status", result)
             .putLong("last_server_attempt_at", System.currentTimeMillis() / 1000)
             .apply()
+        PaymentStore.updateResult(this, data.optString("transaction_id"), result, matchStatus)
     }
 }
