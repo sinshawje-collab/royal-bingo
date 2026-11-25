@@ -522,13 +522,60 @@ html,body,#appRoot{
   border-radius:inherit!important;
 }
 
+
+/* ROYAL BINGO PREMIUM BRAND + TELEGRAM MINI APP POLISH */
+#appRoot>.royal-logo-hero{
+  width:184px!important;height:184px!important;min-width:184px!important;max-width:184px!important;
+  min-height:184px!important;max-height:184px!important;aspect-ratio:1!important;
+  margin:10px auto 2px!important;padding:5px!important;border:0!important;border-radius:28px!important;
+  background:radial-gradient(circle at 50% 48%,rgba(111,48,190,.22),rgba(8,3,27,0) 70%)!important;
+  box-shadow:none!important;overflow:visible!important;
+}
+#appRoot>.royal-logo-hero:before,#appRoot>.royal-logo-hero:after{display:none!important}
+#appRoot>.royal-logo-hero>img{
+  display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;
+  filter:drop-shadow(0 12px 22px rgba(0,0,0,.45)) drop-shadow(0 0 14px rgba(245,190,55,.13));
+}
+#appRoot>.hdr{
+  margin:0 12px 13px!important;padding:10px 12px!important;border-radius:18px!important;
+  border:1px solid rgba(246,195,74,.24)!important;
+  background:linear-gradient(115deg,rgba(23,13,52,.96),rgba(11,14,31,.96))!important;
+  box-shadow:0 12px 28px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.055)!important;
+}
+#appRoot .badge{width:52px!important;height:52px!important;min-width:52px!important;flex:0 0 52px!important;border-radius:14px!important;border:1px solid rgba(255,220,110,.65)!important;box-shadow:0 0 18px rgba(245,158,11,.22)!important}
+#appRoot .badge img{object-fit:contain!important;background:linear-gradient(145deg,#25134c,#0c0820)}
+#appRoot .btitle{font-size:15px!important;letter-spacing:1.1px!important}
+#appRoot .live-pill{display:inline-flex;align-items:center;gap:4px;margin-top:4px}
+#apkLogin{background:radial-gradient(ellipse at 50% 0%,#432077 0%,#160b35 38%,#070316 78%)!important;padding:22px!important}
+#apkLogin>div{
+  background:linear-gradient(155deg,rgba(31,21,65,.98),rgba(10,13,30,.99))!important;
+  border:1px solid rgba(255,211,105,.42)!important;border-radius:26px!important;padding:24px 21px!important;
+  box-shadow:0 24px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.08)!important;
+}
+#apkLogin .apk-brand-mark{width:148px;height:148px;margin:0 auto 5px;display:flex;align-items:center;justify-content:center}
+#apkLogin .apk-brand-mark img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 8px 15px rgba(0,0,0,.4))}
+#apkLogin input{border-color:rgba(196,181,253,.24)!important;background:rgba(5,8,24,.82)!important;border-radius:13px!important;min-height:49px;outline:none}
+#apkLogin input:focus{border-color:#f4c45c!important;box-shadow:0 0 0 3px rgba(244,196,92,.12)}
+#apkLogin button{min-height:50px;border-radius:14px!important;box-shadow:0 8px 20px rgba(229,160,45,.2)}
+#startupGuard{background:radial-gradient(ellipse at 50% 30%,#26104c,#08031b 70%)!important}
+#startupGuard img{filter:drop-shadow(0 12px 22px rgba(0,0,0,.4))}
+#appRoot .scard,#appRoot .sbox,#appRoot .gwrap,#appRoot .mstr,#appRoot .cstage,#appRoot .pcard,#appRoot .hitem,#appRoot .rrow{
+  box-shadow:0 10px 24px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.035);
+}
+#appRoot .scard{border-color:rgba(180,150,235,.19)!important}
+#appRoot .bnav{border-top-color:rgba(246,195,74,.22)!important}
+@media(max-width:380px){
+ #appRoot>.royal-logo-hero{width:158px!important;height:158px!important;min-width:158px!important;max-width:158px!important;min-height:158px!important;max-height:158px!important;margin-top:5px!important}
+ #appRoot .hdr{margin-left:8px!important;margin-right:8px!important}
+}
+
 </style>
 </head>
 <body>
 <div id="toast" class="toast"></div>
 <div id="apkLogin" style="display:none;position:fixed;inset:0;z-index:250;background:radial-gradient(circle at top,#30205b,#08031b 65%);padding:24px;align-items:center;justify-content:center;color:#f8f5ff">
   <div style="width:100%;max-width:390px;background:#111827;border:1px solid rgba(251,191,36,.45);border-radius:22px;padding:24px;box-shadow:0 18px 60px #0009">
-    <div style="text-align:center;font-size:48px">👑</div><h2 style="text-align:center;color:#fbbf24;margin:8px 0 4px">ROYAL BINGO</h2>
+    <div class="apk-brand-mark"><img src="/assets/royal-bingo-logo.svg?v=20261125-1" alt="Royal Bingo"></div><h2 style="text-align:center;color:#fbbf24;margin:8px 0 4px">ROYAL BINGO</h2>
     <p style="text-align:center;color:#c4b5fd;font-size:13px;margin-bottom:22px">Standalone APK · Secure Login</p>
     <label style="display:block;font-size:13px;color:#cbd5e1;margin:10px 0 6px">ስልክ ቁጥር</label>
     <input id="apkPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="09XXXXXXXX" style="width:100%;padding:14px;border-radius:11px;border:1px solid #475569;background:#080f1e;color:white;font-size:16px">
@@ -539,15 +586,15 @@ html,body,#appRoot{
     <p style="font-size:11px;color:#94a3b8;text-align:center;line-height:1.6">Password ካልዘጋጁ፣ በTelegram Mini App ገብተው Profile ውስጥ ያዘጋጁ።</p>
   </div>
 </div>
-<div id="startupGuard" style="position:fixed;inset:0;z-index:200;background:#08031b;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8f5ff;text-align:center;padding:24px"><div style="font-size:48px;margin-bottom:12px">👑</div><strong style="font-size:20px;color:#ffd84d">ROYAL BINGO</strong><div style="margin-top:10px;color:#c4b5fd;font-size:13px">⏳ የመግቢያ ፈቃድዎን በማረጋገጥ ላይ...</div></div>
+<div id="startupGuard" style="position:fixed;inset:0;z-index:200;background:#08031b;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8f5ff;text-align:center;padding:24px"><img src="/assets/royal-bingo-logo.svg?v=20261125-1" alt="Royal Bingo" style="width:132px;height:132px;object-fit:contain;margin-bottom:12px"><strong style="font-size:20px;color:#ffd84d">ROYAL BINGO</strong><div style="margin-top:10px;color:#c4b5fd;font-size:13px">⏳ የመግቢያ ፈቃድዎን በማረጋገጥ ላይ...</div></div>
 <div id="authGuard" class="auth-err" style="display:none">
-  <div style="font-size:48px;margin-bottom:10px">👑</div>
+  <img src="/assets/royal-bingo-logo.svg?v=20261125-1" alt="Royal Bingo" style="width:132px;height:132px;object-fit:contain;margin-bottom:10px">
   <h2 style="color:var(--gold2);margin-bottom:8px">ROYAL BINGO LIVE</h2>
   <p style="color:var(--mut);font-size:14px">ይህ ጨዋታ የሚሰራው በቴሌግራም ቦቱ ውስጥ ብቻ ነው። እባክዎ ወደ ቴሌግራም ተመልሰው <strong>Play Royal Bingo</strong> ቁልፍን ይጫኑ።</p>
 </div>
 
 <div id="appRoot" class="app" style="visibility:hidden">
-  <div class="hero-banner" aria-label="Royal Bingo"><img src="/assets/royal-bingo-banner.svg?v=20261124-3" alt="Royal Bingo — Play Win Celebrate" style="display:block;width:100%;height:100%;object-fit:cover;object-position:center;border-radius:inherit"></div>
+  <div class="hero-banner royal-logo-hero" aria-label="Royal Bingo"><img src="/assets/royal-bingo-logo.svg?v=20261125-1" alt="Royal Bingo official logo"></div>
   <header class="hdr">
     <div class="brand">
       <div class="badge" style="width:54px;height:54px;min-width:54px;flex:0 0 54px;border-radius:12px;overflow:hidden;background:#f59e0b;border:1px solid #fbbf24;box-shadow:0 0 14px rgba(245,158,11,.5);padding:0;display:block"><img src="/assets/royal-bingo-logo.svg?v=3" alt="Royal Bingo official logo" style="width:100%;height:100%;object-fit:cover;display:block"></div>
