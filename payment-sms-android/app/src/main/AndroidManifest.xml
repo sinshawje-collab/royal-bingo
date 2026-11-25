@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
-        android:label="Royal Bingo Reader"
+        android:label="Royal Bingo Payment Manager"
         android:icon="@drawable/royal_bingo_logo"
         android:roundIcon="@drawable/royal_bingo_logo"
         android:usesCleartextTraffic="false">
@@ -14,7 +14,7 @@
         </activity>
         <service
             android:name=".PaymentNotificationListener"
-            android:label="Royal Bingo Payment Reader"
+            android:label="Royal Bingo Payment Manager"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:exported="true">
             <intent-filter>
