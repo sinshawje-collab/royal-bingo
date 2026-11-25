@@ -836,19 +836,32 @@ function speakText(txt, freq) {
       window.speechSynthesis.cancel();
       var u = new SpeechSynthesisUtterance(String(txt));
       u.lang = 'am-ET';
-      u.rate = 0.95;
+      u.rate = 0.88;
+      u.pitch = 0.92;
       u.volume = 1.0;
-      u.onerror = function() {
-        try {
-          var u2 = new SpeechSynthesisUtterance(String(txt));
-          u2.lang = 'en-US';
-          u2.rate = 0.95;
-          window.speechSynthesis.speak(u2);
-        } catch (e2) {}
-      };
+      var voices = window.speechSynthesis.getVoices();
+      var amVoice = voices.find(function(v) { return /^am(-|_)?ET$/i.test(v.lang); }) ||
+                    voices.find(function(v) { return /^am/i.test(v.lang); });
+      if (amVoice) u.voice = amVoice;
       window.speechSynthesis.speak(u);
     } catch (e) {}
   }
+}
+
+function amharicNumber(n) {
+  var ones = ['', 'አንድ', 'ሁለት', 'ሶስት', 'አራት', 'አምስት', 'ስድስት', 'ሰባት', 'ስምንት', 'ዘጠኝ'];
+  var teens = {10:'አስር',11:'አስራ አንድ',12:'አስራ ሁለት',13:'አስራ ሶስት',14:'አስራ አራት',15:'አስራ አምስት',16:'አስራ ስድስት',17:'አስራ ሰባት',18:'አስራ ስምንት',19:'አስራ ዘጠኝ'};
+  var tens = {20:'ሃያ',30:'ሰላሳ',40:'አርባ',50:'ሃምሳ',60:'ስልሳ',70:'ሰባ'};
+  if (teens[n]) return teens[n];
+  var ten = Math.floor(n / 10) * 10, one = n % 10;
+  if (ten === 0) return ones[one];
+  return tens[ten] + (one ? ' ' + ones[one] : '');
+}
+
+function playAmharicBall(n) {
+  if (!soundOn || !n || n < 1 || n > 75) return;
+  var letter = n <= 15 ? 'ቢ' : n <= 30 ? 'አይ' : n <= 45 ? 'ኤን' : n <= 60 ? 'ጂ' : 'ኦ';
+  speakText(letter + ' ' + amharicNumber(n), 560 + (n % 15) * 14);
 }
 
 function launchWinCelebration() {
@@ -1083,7 +1096,7 @@ function renderState(d) {
     var cur = r.called.length ? r.called[0] : null;
     if (cur && cur !== lastCalledBall) {
       lastCalledBall = cur;
-      playVoice(String(cur), getLtr(cur) + ' ' + cur, 520 + (cur % 15) * 18);
+      playAmharicBall(cur);
     }
 
     var mh = '';
