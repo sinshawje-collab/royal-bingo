@@ -94,8 +94,21 @@ class PaymentNotificationListener : NotificationListenerService() {
             c.setRequestProperty("Authorization", "Bearer $token")
             c.outputStream.use { it.write(data.toString().toByteArray(Charsets.UTF_8)) }
             val code = c.responseCode
-            result = "HTTP $code"
-            (if (code in 200..299) c.inputStream else c.errorStream)?.close()
+            val responseText = (if (code in 200..299) c.inputStream else c.errorStream)
+                ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            result = if (code in 200..299) {
+                val payload = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
+                val match = payload.optString("match_status", "")
+                when (match) {
+                    "matched" -> "HTTP $code · PAYMENT MATCHED"
+                    "details_mismatch" -> "HTTP $code · DETAILS MISMATCH"
+                    "no_pending_transaction" -> "HTTP $code · NO PENDING REQUEST"
+                    "duplicate" -> "HTTP $code · DUPLICATE EVENT"
+                    else -> "HTTP $code · " + payload.optString("message", "RECEIVED")
+                }
+            } else {
+                "HTTP $code · " + responseText.take(140)
+            }
             c.disconnect()
         } catch (e: Exception) {
             result = "Network error: ${e.javaClass.simpleName}"
