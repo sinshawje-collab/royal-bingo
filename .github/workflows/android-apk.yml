@@ -36,7 +36,7 @@ jobs:
             echo "Android SDK command-line tools were not found on this runner."
             exit 1
           fi
-          yes | "$SDKMANAGER" --licenses >/dev/null
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
