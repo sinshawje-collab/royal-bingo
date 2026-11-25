@@ -14,6 +14,7 @@ import android.widget.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.Calendar
 
 class MainActivity : Activity() {
     private lateinit var pairedView: TextView
@@ -22,6 +23,8 @@ class MainActivity : Activity() {
     private lateinit var lastSeenView: TextView
     private lateinit var paymentView: TextView
     private lateinit var serverView: TextView
+    private lateinit var summaryView: TextView
+    private lateinit var historyContainer: LinearLayout
     private lateinit var codeInput: EditText
     private lateinit var connectButton: Button
     private lateinit var prefs: android.content.SharedPreferences
@@ -69,6 +72,13 @@ class MainActivity : Activity() {
         page.addView(label("Welcome back", 23f, Color.WHITE, true).apply { setPadding(dp(2), dp(22), 0, dp(4)) })
         page.addView(label("Monitor incoming TeleBirr and CBE Birr payment alerts.", 13f, muted, false).apply { setPadding(dp(2), 0, 0, dp(16)) })
 
+        val overviewCard = card()
+        overviewCard.addView(sectionTitle("TODAY'S PAYMENT OVERVIEW"))
+        summaryView = label("Loading payment summary...", 13f, Color.WHITE, false)
+        summaryView.setLineSpacing(dp(5).toFloat(), 1f)
+        overviewCard.addView(summaryView)
+        page.addView(overviewCard)
+
         val connectionCard = card()
         connectionCard.addView(sectionTitle("DEVICE CONNECTION"))
         pairedView = statusLine()
@@ -110,6 +120,25 @@ class MainActivity : Activity() {
         activityCard.addView(serverView)
         page.addView(activityCard)
 
+        val historyCard = card()
+        historyCard.addView(sectionTitle("RECENT PAYMENT HISTORY"))
+        historyContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        historyCard.addView(historyContainer)
+        val clearHistoryButton = actionButton("CLEAR LOCAL HISTORY", false)
+        clearHistoryButton.setOnClickListener {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Clear payment history?")
+                .setMessage("This only clears the recent history stored on this phone. It does not delete server records or player deposits.")
+                .setNegativeButton("CANCEL", null)
+                .setPositiveButton("CLEAR") { _, _ ->
+                    PaymentStore.clear(this)
+                    refreshStatus()
+                    toast("Local history cleared")
+                }.show()
+        }
+        historyCard.addView(clearHistoryButton, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(8) })
+        page.addView(historyCard)
+
         val settingsButton = actionButton("OPEN NOTIFICATION ACCESS SETTINGS", false)
         settingsButton.setOnClickListener { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
         page.addView(settingsButton, LinearLayout.LayoutParams(-1, dp(50)).apply { topMargin = dp(4) })
@@ -123,7 +152,7 @@ class MainActivity : Activity() {
         }
         page.addView(refreshButton)
         page.addView(label("PRIVACY & SECURITY", 11f, gold, true).apply { setPadding(dp(2), dp(14), 0, dp(6)) })
-        page.addView(label("Only payment provider, received amount, transaction ID and time are forwarded securely. Full message text and OTP codes are not uploaded. Wallet deposits still require admin approval.", 12f, muted, false))
+        page.addView(label("Only payment provider, amount, transaction ID and time are sent to Royal Bingo. Full notification text and OTP codes are not uploaded. Recent event history is stored on this phone (up to 50 records). Wallet deposits still require admin approval.", 12f, muted, false))
         page.addView(label("Important: your SMS app must show new payment notifications. This app cannot recover notifications received before it was installed or enabled.", 11f, muted, false).apply { setPadding(0, dp(12), 0, 0) })
 
         setContentView(scroll)
@@ -174,6 +203,63 @@ class MainActivity : Activity() {
         lastSeenView.text = "Last notification\n" + if (seen > 0) formatTime(seen) else "Not yet"
         paymentView.text = "Payment detected\n" + prefs.getString("last_payment_status", "Waiting for a new payment alert")
         serverView.text = "Server response\n" + prefs.getString("last_server_status", "No payment sent yet")
+        renderPaymentHistory()
+    }
+
+
+    private fun renderPaymentHistory() {
+        if (!::summaryView.isInitialized || !::historyContainer.isInitialized) return
+        val events = PaymentStore.events(this)
+        val day = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis / 1000
+        var todayCount = 0
+        var todayTotal = 0.0
+        var matchedCount = 0
+        var cbeCount = 0
+        var teleCount = 0
+        for (i in 0 until events.length()) {
+            val item = events.optJSONObject(i) ?: continue
+            if (item.optLong("received_at") >= day) {
+                todayCount++
+                todayTotal += item.optDouble("amount", 0.0)
+                if (item.optString("local_status") == "MATCHED") matchedCount++
+                when (item.optString("provider")) {
+                    "CBE Birr" -> cbeCount++
+                    "TeleBirr" -> teleCount++
+                }
+            }
+        }
+        summaryView.text = "ETB ${String.format(Locale.US, "%,.2f", todayTotal)}   •   $todayCount detected today\nMatched: $matchedCount   •   CBE: $cbeCount   •   TeleBirr: $teleCount\nLocal history: ${events.length()} / 50 events"
+        historyContainer.removeAllViews()
+        if (events.length() == 0) {
+            historyContainer.addView(label("No payment events recorded yet.", 12f, muted, false).apply { setPadding(0, dp(4), 0, dp(10)) })
+            return
+        }
+        val start = (events.length() - 10).coerceAtLeast(0)
+        for (i in events.length() - 1 downTo start) {
+            val item = events.optJSONObject(i) ?: continue
+            val provider = item.optString("provider", "Payment")
+            val amount = item.optDouble("amount", 0.0)
+            val tx = item.optString("transaction_id", "")
+            val status = item.optString("local_status", "RECEIVED")
+            val time = item.optLong("received_at", 0L)
+            val statusColor = when (status) {
+                "MATCHED" -> Color.rgb(112, 230, 163)
+                "DETAILS_MISMATCH", "NO_PENDING_TRANSACTION", "FAILED", "NOT PAIRED" -> Color.rgb(255, 135, 135)
+                else -> gold
+            }
+            val entry = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(10), dp(9), dp(10), dp(9))
+                background = rounded(Color.rgb(29, 23, 51), 12)
+            }
+            entry.addView(label("$provider  •  ETB ${String.format(Locale.US, "%,.2f", amount)}", 13f, Color.WHITE, true))
+            entry.addView(label("TX: $tx", 10f, muted, false).apply { setPadding(0, dp(3), 0, dp(3)) })
+            entry.addView(label("${if (time > 0) formatTime(time) else "Time unavailable"}  •  $status", 10f, statusColor, true))
+            historyContainer.addView(entry, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(7) })
+        }
     }
 
     private fun card() = LinearLayout(this).apply {
