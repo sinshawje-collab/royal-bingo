@@ -526,13 +526,14 @@ html,body,#appRoot{
 </head>
 <body>
 <div id="toast" class="toast"></div>
+<div id="startupGuard" style="position:fixed;inset:0;z-index:200;background:#08031b;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8f5ff;text-align:center;padding:24px"><div style="font-size:48px;margin-bottom:12px">👑</div><strong style="font-size:20px;color:#ffd84d">ROYAL BINGO</strong><div style="margin-top:10px;color:#c4b5fd;font-size:13px">⏳ የመግቢያ ፈቃድዎን በማረጋገጥ ላይ...</div></div>
 <div id="authGuard" class="auth-err" style="display:none">
   <div style="font-size:48px;margin-bottom:10px">👑</div>
   <h2 style="color:var(--gold2);margin-bottom:8px">ROYAL BINGO LIVE</h2>
   <p style="color:var(--mut);font-size:14px">ይህ ጨዋታ የሚሰራው በቴሌግራም ቦቱ ውስጥ ብቻ ነው። እባክዎ ወደ ቴሌግራም ተመልሰው <strong>Play Royal Bingo</strong> ቁልፍን ይጫኑ።</p>
 </div>
 
-<div id="appRoot" class="app">
+<div id="appRoot" class="app" style="visibility:hidden">
   <div class="hero-banner" aria-label="Royal Bingo"><img src="/assets/royal-bingo-banner.svg?v=20261124-3" alt="Royal Bingo — Play Win Celebrate" style="display:block;width:100%;height:100%;object-fit:cover;object-position:center;border-radius:inherit"></div>
   <header class="hdr">
     <div class="brand">
@@ -916,6 +917,7 @@ async function apiReq(url, method, body) {
   if (!res.ok) {
     if (res.status === 401) {
       document.getElementById('appRoot').style.display = 'none';
+      document.getElementById('startupGuard').style.display = 'none';
       document.getElementById('authGuard').style.display = 'block';
     }
     throw new Error(data.detail || 'ስህተት ተፈጥሯል');
@@ -945,6 +947,8 @@ var cardGridClickBound = false;
 
 function renderState(d) {
   latestState = d;
+  document.getElementById("startupGuard").style.display = "none";
+  document.getElementById("appRoot").style.visibility = "visible";
   var u = d.user || {}, r = d.room || {}, cfg = d.config || {};
   var financeClosed = !!(d.finance_service && d.finance_service.closed) && !d.is_admin;
   ['depDrw','wdDrw'].forEach(function(id) {
@@ -1285,6 +1289,7 @@ function renderAdminDashboard(data) {
 async function pollState() {
   if (!initData) {
     document.getElementById('appRoot').style.display = 'none';
+    document.getElementById('startupGuard').style.display = 'none';
     document.getElementById('authGuard').style.display = 'block';
     return;
   }
