@@ -180,7 +180,7 @@ def init_db():
     statements = [
       """CREATE TABLE IF NOT EXISTS users (uid BIGINT PRIMARY KEY, name TEXT DEFAULT 'Player', phone TEXT,
         play_wallet DOUBLE PRECISION DEFAULT 0, win_wallet DOUBLE PRECISION DEFAULT 0, matches_played INTEGER DEFAULT 0,
-        wins INTEGER DEFAULT 0, total_won DOUBLE PRECISION DEFAULT 0, referred_by BIGINT, created_at BIGINT)""",
+        wins INTEGER DEFAULT 0, total_won DOUBLE PRECISION DEFAULT 0, referred_by BIGINT, created_at BIGINT, apk_password_hash TEXT)\"\"\",
       """CREATE TABLE IF NOT EXISTS transactions (id BIGSERIAL PRIMARY KEY, uid BIGINT, icon TEXT,
         title TEXT, amount DOUBLE PRECISION, created_at BIGINT)""",
       """CREATE TABLE IF NOT EXISTS requests (id BIGSERIAL PRIMARY KEY, req_type TEXT, uid BIGINT,
@@ -201,6 +201,11 @@ def init_db():
       "CREATE INDEX IF NOT EXISTS idx_transactions_uid_id ON transactions(uid, id DESC)",
       "CREATE INDEX IF NOT EXISTS idx_requests_uid_pending ON requests(uid, req_type, status, id DESC)",
       # Support phone verification/lookups and the public top-winners list.
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS apk_password_hash TEXT",
+      """CREATE TABLE IF NOT EXISTS apk_sessions (token_hash TEXT PRIMARY KEY, uid BIGINT NOT NULL, expires_at BIGINT NOT NULL, created_at BIGINT NOT NULL, last_seen BIGINT NOT NULL)""",
+      "CREATE INDEX IF NOT EXISTS idx_apk_sessions_uid ON apk_sessions(uid)",
+      """CREATE TABLE IF NOT EXISTS apk_login_attempts (id BIGSERIAL PRIMARY KEY, phone TEXT NOT NULL, ip TEXT NOT NULL, created_at BIGINT NOT NULL)""",
+      "CREATE INDEX IF NOT EXISTS idx_apk_login_attempts_phone_time ON apk_login_attempts(phone, created_at DESC)",
       "CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone IS NOT NULL",
       """CREATE TABLE IF NOT EXISTS payment_pairing_codes (code_hash TEXT PRIMARY KEY, created_by BIGINT NOT NULL, expires_at BIGINT NOT NULL, used_at BIGINT)""",
       """CREATE TABLE IF NOT EXISTS payment_devices (id BIGSERIAL PRIMARY KEY, token_hash TEXT UNIQUE NOT NULL, label TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at BIGINT NOT NULL, last_seen BIGINT)""",
@@ -377,6 +382,23 @@ def game_loop():
     time.sleep(0.35)
 
 def auth_user(init_data: str):
+  # Standalone APK sessions use the existing auth header; Telegram Mini App
+  # continues to use the original signed initData path below.
+  if init_data and init_data.startswith('rb1.'):
+    raw_token = init_data[4:]
+    if len(raw_token) < 40:
+      raise HTTPException(401, 'የAPK መግቢያ ፈቃድ ተሳስቷል።')
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    now = int(time.time())
+    with get_db() as c:
+      row = c.execute('SELECT uid FROM apk_sessions WHERE token_hash=? AND expires_at>? ', (token_hash, now)).fetchone()
+      if not row:
+        raise HTTPException(401, 'የመግቢያ ጊዜዎ አልቋል። እንደገና ይግቡ።')
+      c.execute('UPDATE apk_sessions SET last_seen=? WHERE token_hash=?', (now, token_hash))
+      user = c.execute('SELECT * FROM users WHERE uid=?', (row['uid'],)).fetchone()
+    if not user:
+      raise HTTPException(401, 'የተጠቃሚ አካውንት አልተገኘም።')
+    return dict(user)
   if not init_data or not TOKEN:
     raise HTTPException(401, 'እባክዎ አፑን በቴሌግራም ቦት ውስጥ ብቻ ይክፈቱ!')
   try:
@@ -1119,6 +1141,1685 @@ def serve_app():
   if not os.path.exists('index.html'):
     return HTMLResponse('index.html missing', 404)
   return FileResponse('index.html', headers={'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma': 'no-cache', 'Expires': '0'})
+
+@app.post('/api/apk/password')
+async def api_apk_set_password(req: Request, x_tg_init_data: str = Header(default='')):
+  # Password linking is permitted only from a freshly verified Telegram session.
+  if not x_tg_init_data or x_tg_init_data.startswith('rb1.'):
+    raise HTTPException(401, 'የመጀመሪያ የPassword ማዘጋጀት ሂደትን በTelegram Mini App ውስጥ ያከናውኑ።')
+  u = auth_user(x_tg_init_data)
+  body = await req.json()
+  password = str(body.get('password', '')) if isinstance(body, dict) else ''
+  if len(password) < 8 or len(password) > 128:
+    raise HTTPException(400, 'Password ቢያንስ 8 እና ከ128 ቁምፊ ያልበለጠ መሆን አለበት።')
+  salt = secrets.token_bytes(16)
+  digest = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 310000)
+  encoded = 'pbkdf2_sha256$310000(stake: int = 10, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if stake not in rooms: raise HTTPException(400, 'ልክ ያልሆነ የጨዋታ ክፍል!')
+  r = rooms[stake]
+  admin_view = is_adm(u['uid'])
+  with room_lock:
+    my_c = sorted([k for k, v in r['cards'].items() if v['uid'] == u['uid']])
+    tk_c = sorted([k for k, v in r['cards'].items() if v['uid'] != u['uid']])
+    snap = {'stake': r['stake'], 'phase': r['phase'], 'countdown': r['countdown'], 'players': n_players(r),
+            'min_players': min_players_for(stake), 'total_cards': len(r['cards']), 'derash': derash(r),
+            'taken_cards': tk_c, 'my_cards': my_c, 'my_boards': {str(n): r['cards'][n]['grid'] for n in my_c},
+            'called': r['called'], 'winner': r['winner'], 'winner_left': max(0, int(r['win_until'] - time.time())) if r['phase'] == 'WINNER' else 0}
+    admin_rooms = {}
+    if admin_view:
+      for room_stake, room in rooms.items():
+        admin_rooms[str(room_stake)] = {'stake': room_stake, 'phase': room['phase'], 'players': n_players(room), 'derash': derash(room), 'called': list(room['called']), 'upcoming': list(reversed(room['deck'])) if room['phase'] == 'PLAYING' else [], 'remaining': len(room['deck']), 'total_cards': len(room['cards'])}
+  with get_db() as c:
+    txs = [dict(x) for x in c.execute('SELECT icon,title,amount,created_at, NULL AS status FROM transactions WHERE uid=? ORDER BY id DESC LIMIT 25', (u['uid'],)).fetchall()]
+    pending = [dict(x) for x in c.execute("SELECT '⏳' AS icon, 'የወጪ ጥያቄ ('||method||') - PENDING' AS title, -amount AS amount, created_at, status FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending' AND details LIKE 'PENDING RESERVED |%' ORDER BY id DESC LIMIT 25", (u['uid'],)).fetchall()]
+    txs = sorted(txs + pending, key=lambda x: x['created_at'], reverse=True)[:25]
+    top = [dict(x) for x in c.execute('SELECT name,total_won FROM users WHERE total_won>0 ORDER BY total_won DESC LIMIT 10').fetchall()]
+  return {'games_paused': GAME_PAUSED, 'admin_rooms': admin_rooms if admin_view else None, 'finance_service': finance_service_status(), 'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': admin_view,
+          'finance_rotation': finance_rotation_status() if admin_view else None,
+          'config': {**active_payment_accounts(), 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
+
+@app.post('/api/buy_card')
+async def api_buy(req: Request, x_tg_init_data: str = Header(default='')):
+  u, b = auth_user(x_tg_init_data), await req.json()
+  try: st, cno = int(b.get('stake', 10)), int(b.get('card_no', 0))
+  except (TypeError, ValueError): raise HTTPException(400, 'ልክ ያልሆነ ካርድ!')
+  if st not in rooms or not (1 <= cno <= 400): raise HTTPException(400, 'ልክ ያልሆነ ካርድ!')
+  with room_lock:
+    r = rooms[st]
+    if r['phase'] not in ('WAITING', 'COUNTDOWN'): raise HTTPException(400, 'ጨዋታው ተጀምሯል!')
+    if cno in r['cards']:
+      if r['cards'][cno]['uid'] == u['uid']:
+        with get_db() as c:
+          c.execute('BEGIN IMMEDIATE')
+          c.execute('UPDATE users SET play_wallet=play_wallet+? WHERE uid=?', (st, u['uid']))
+          add_tx(c, u['uid'], '↩️', f'ካርድ #{cno} ተሰርዟል', st)
+          del r['cards'][cno]
+          save_room(r, c)
+        return {'ok': True, 'action': 'removed'}
+      raise HTTPException(400, f'ካርድ #{cno} ተይዟል!')
+    if sum(1 for v in r['cards'].values() if v['uid'] == u['uid']) >= 4: raise HTTPException(400, 'እስከ 4 ካርድ ብቻ!')
+    with get_db() as c:
+      c.execute('BEGIN IMMEDIATE')
+      wallet = c.execute('SELECT play_wallet FROM users WHERE uid=?', (u['uid'],)).fetchone()
+      if not wallet or available_wallet(c, u['uid']) < st: raise HTTPException(400, 'በቂ Play Wallet የለዎትም! ገቢ ያድርጉ።')
+      c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=?', (st, u['uid'])); add_tx(c, u['uid'], '🎴', f'ካርድ #{cno} ({st} ብር)', -st)
+      r['cards'][cno] = {'uid': u['uid'], 'name': u['name'], 'grid': gen_card(cno)}
+      save_room(r, c)
+    return {'ok': True, 'action': 'bought'}
+
+@app.post('/api/claim_bingo')
+async def api_claim(req: Request, x_tg_init_data: str = Header(default='')):
+  u, b = auth_user(x_tg_init_data), await req.json()
+  try: st, cno = int(b.get('stake', 10)), int(b.get('card_no', 0))
+  except (TypeError, ValueError): raise HTTPException(400, 'ልክ ያልሆነ ክፍል/ካርድ!')
+  if st not in rooms or not (1 <= cno <= 400): raise HTTPException(400, 'ልክ ያልሆነ ክፍል/ካርድ!')
+  with room_lock:
+    r = rooms[st]
+    if r['phase'] != 'PLAYING': raise HTTPException(400, 'ጨዋታው አልተጀመረም!')
+    own = r['cards'].get(cno)
+    if not own or own['uid'] != u['uid']: raise HTTPException(403, 'ይህ ካርድ የእርስዎ አይደለም!')
+    wl = check_win(own['grid'], set(r['called']))
+    if not wl: raise HTTPException(400, 'ገና BINGO አልተሟላም!')
+    finish_round(r, u['uid'], u['name'], cno, wl)
+    return {'ok': True, 'prize': r['winner']['prize']}
+
+@app.post('/api/transfer')
+async def api_transfer(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  body = await req.json()
+  phone = normalize_phone(body.get('phone'))
+  try:
+    amt = round(float(body.get('amount', 0)), 2)
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'የሚላከው ብር መጠን ትክክል አይደለም።')
+  if not phone or len(re.sub(r'\D', '', phone)) != 12:
+    raise HTTPException(400, 'የተቀባዩን የተመዘገበ ስልክ ቁጥር በትክክል ያስገቡ።')
+  if not math.isfinite(amt) or amt < 1 or amt > 100000:
+    raise HTTPException(400, 'ዝቅተኛው 1 ETB ነው፤ የብር መጠኑን ያረጋግጡ።')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    c.execute('SELECT uid FROM users WHERE uid=? FOR UPDATE', (u['uid'],))
+    matches = c.execute('SELECT uid, name FROM users WHERE phone=?', (phone,)).fetchall()
+    if not matches:
+      raise HTTPException(404, 'ይህ ስልክ ቁጥር በRoyal Bingo አልተመዘገበም።')
+    if len(matches) != 1:
+      raise HTTPException(409, 'ይህ ስልክ ቁጥር ከአንድ ተጫዋች ጋር ተያይዟል፤ ድጋፍን ያነጋግሩ።')
+    receiver = matches[0]
+    if int(receiver['uid']) == int(u['uid']):
+      raise HTTPException(400, 'ገንዘብን ወደ ራስዎ መላክ አይችሉም።')
+    available = available_wallet(c, u['uid'])
+    if available < amt:
+      raise HTTPException(400, f'በቂ ባላንስ የለዎትም። የሚገኘው {available:.2f} ETB ነው።')
+    c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)-? WHERE uid=?', (amt, u['uid']))
+    c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+? WHERE uid=?', (amt, receiver['uid']))
+    add_tx(c, u['uid'], '↗️', f'ለ {receiver["name"]} የተላከ ብር', -amt)
+    add_tx(c, receiver['uid'], '↙️', f'ከ {u["name"]} የተቀበለ ብር', amt)
+  return {'ok': True, 'amount': amt, 'recipient': receiver['name']}
+
+@app.post('/api/deposit')
+async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  ensure_finance_service_open(u['uid'])
+  b = await req.json()
+  method = str(b.get('method', 'TeleBirr')).strip()
+  if method not in ('TeleBirr', 'CBE Birr', 'CbeBirr'):
+    raise HTTPException(400, 'TeleBirr ወይም CbeBirr ይምረጡ!')
+  sms = str(b.get('sms', '')).strip()
+  parsed = parse_payment_sms(sms, method)
+  if not parsed:
+    raise HTTPException(400, 'ሙሉ የTeleBirr/CBE የክፍያ SMS ይላኩ። Amount እና Transaction ID በSMS ውስጥ መኖር አለባቸው!')
+  amt, tx = parsed
+  if not math.isfinite(amt) or amt < 20 or amt > 1000000:
+    raise HTTPException(400, 'በSMS ውስጥ ያለው መጠን 20 ETB እስከ 1,000,000 ETB መሆን አለበት!')
+  try: rid = notify_req('deposit', u['uid'], amt, method, f'Full payment SMS:\\n{sms[:2500]}', reference=tx)
+  except sqlite3.IntegrityError: raise HTTPException(409, 'ይህ Transaction ID ቀድሞ ተጠቅሟል!')
+  # The bank notification may arrive before the player submits the SMS. Match any
+  # previously captured, still-unmatched device event as soon as the request exists.
+  with get_db() as c:
+    event = c.execute("SELECT provider,amount,transaction_id FROM payment_sms_events WHERE lower(transaction_id)=lower(?) AND matched_request_id IS NULL ORDER BY id DESC LIMIT 1", (tx,)).fetchone()
+    if event:
+      expected_provider = 'CBE Birr' if payment_method_label(method) == 'CbeBirr' else 'TeleBirr'
+      valid = abs(float(event['amount'] or 0)-amt) <= 0.01 and event['provider'] == expected_provider
+      if valid:
+        c.execute("UPDATE payment_sms_events SET matched_request_id=?,match_status='matched' WHERE lower(transaction_id)=lower(?) AND matched_request_id IS NULL", (rid,tx))
+        c.execute("UPDATE requests SET details=details || ? WHERE id=?", (f' | APK VERIFIED: {event["provider"]}, {amt:.2f} ETB, TX {tx}',rid))
+      else:
+        c.execute("UPDATE payment_sms_events SET matched_request_id=?,match_status='details_mismatch' WHERE lower(transaction_id)=lower(?) AND matched_request_id IS NULL", (rid,tx))
+  if event and bot:
+    try:
+      player = ensure_user(u['uid'])
+      kb = IKB()
+      if valid:
+        kb.row(IBtn('✅ APK አረጋግጧል — ፍቀድ', callback_data=f'ap_dep_{rid}'),
+               IBtn('❌ ውድቅ አድርግ', callback_data=f'rj_dep_{rid}'))
+        message = f'🟢 APK የክፍያውን መረጃ አረጋግጧል\\nRequest #{rid}\\n👤 {player["name"]}\\n💵 {amt:.2f} ETB\\n🏦 {expected_provider}\\n🧾 TX: {tx}'
+      else:
+        kb.row(IBtn('❌ ውድቅ አድርግ', callback_data=f'rj_dep_{rid}'))
+        message = f'🔴 የክፍያ መረጃ አልተዛመደም — Approve አይፈቀድም!\\nRequest #{rid}\\n👤 {player["name"]}\\nSMS: {amt:.2f} ETB / {payment_method_label(method)}\\nAPK: {float(event["amount"]):.2f} ETB / {event["provider"]}\\nTX: {tx}'
+      for aid in finance_admin_ids():
+        try: bot.send_message(aid,message,reply_markup=kb)
+        except Exception: pass
+    except Exception as exc:
+      print('Pre-captured payment event review notification failed:',type(exc).__name__,str(exc))
+  return {'ok': True, 'amount': amt, 'transaction_id': tx}
+
+
+# Admin pairs the Android companion app using a short-lived one-time code.
+@app.post('/api/admin/payment-device/pair-code')
+def api_payment_device_pair_code(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  code = ''.join(secrets.choice('23456789ABCDEFGHJKLMNPQRSTUVWXYZ') for _ in range(8))
+  digest = hashlib.sha256(code.encode()).hexdigest()
+  now = int(time.time())
+  with get_db() as c:
+    c.execute('UPDATE payment_pairing_codes SET used_at=? WHERE created_by=? AND used_at IS NULL', (now, u['uid']))
+    c.execute('INSERT INTO payment_pairing_codes(code_hash,created_by,expires_at,used_at) VALUES(?,?,?,NULL)', (digest, u['uid'], now + 300))
+  return {'ok': True, 'pairing_code': code, 'expires_in_seconds': 300}
+
+@app.post('/api/payment-device/enroll')
+async def api_payment_device_enroll(req: Request):
+  body = await req.json()
+  code = str(body.get('pairing_code', '')).strip().upper() if isinstance(body, dict) else ''
+  label = str(body.get('label', 'Royal Bingo Admin Phone')).strip()[:80]
+  if len(code) != 8:
+    raise HTTPException(400, 'የPairing Code ትክክል አይደለም!')
+  now = int(time.time())
+  digest = hashlib.sha256(code.encode()).hexdigest()
+  token = secrets.token_urlsafe(40)
+  with get_db() as c:
+    row = c.execute('SELECT code_hash,created_by,expires_at,used_at FROM payment_pairing_codes WHERE code_hash=?', (digest,)).fetchone()
+    if not row or row['used_at'] is not None or int(row['expires_at']) < now:
+      raise HTTPException(400, 'Pairing Code ጊዜው አልፏል ወይም ተጠቅሟል። አዲስ Code ይፍጠሩ።')
+    c.execute('UPDATE payment_pairing_codes SET used_at=? WHERE code_hash=? AND used_at IS NULL', (now, digest))
+    c.execute('INSERT INTO payment_devices(token_hash,label,active,created_at) VALUES(?,?,1,?)', (hashlib.sha256(token.encode()).hexdigest(), label or 'Royal Bingo Admin Phone', now))
+  return {'ok': True, 'device_token': token, 'message': 'Token አንድ ጊዜ ብቻ ይታያል፤ በስልኩ ውስጥ በደህና ያስቀምጡት።'}
+
+@app.post('/api/payment-device/notification')
+async def api_payment_device_notification(req: Request, authorization: str = Header(default='')):
+  if not authorization.startswith('Bearer '):
+    raise HTTPException(401, 'Device authentication required')
+  token = authorization[7:].strip()
+  if len(token) < 40:
+    raise HTTPException(401, 'Invalid device token')
+  token_hash = hashlib.sha256(token.encode()).hexdigest()
+  body = await req.json()
+  if not isinstance(body, dict):
+    raise HTTPException(400, 'Invalid notification data')
+  provider = str(body.get('provider', '')).strip()
+  txid = str(body.get('transaction_id', '')).strip()
+  try:
+    amount = float(body.get('amount'))
+    received_at = int(body.get('received_at') or time.time())
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'Amount or timestamp is invalid')
+  if provider not in ('TeleBirr', 'CBE Birr') or not math.isfinite(amount) or amount <= 0 or amount > 10000000 or len(txid) < 4 or len(txid) > 120:
+    raise HTTPException(400, 'Provider, amount or transaction ID is invalid')
+  now = int(time.time())
+  with get_db() as c:
+    device = c.execute('SELECT id FROM payment_devices WHERE token_hash=? AND active=1', (token_hash,)).fetchone()
+    if not device:
+      raise HTTPException(401, 'Device is not paired or has been revoked')
+    c.execute('UPDATE payment_devices SET last_seen=? WHERE id=?', (now, device['id']))
+    try:
+      c.execute('INSERT INTO payment_sms_events(provider,transaction_id,amount,received_at,matched_request_id,match_status,created_at) VALUES(?,?,?,?,NULL,?,?)',
+                (provider, txid, amount, received_at, 'unmatched', now))
+    except sqlite3.IntegrityError:
+      return {'ok': True, 'duplicate': True, 'match_status': 'duplicate'}
+    reqrow = c.execute("SELECT id,uid,amount,method FROM requests WHERE req_type='deposit' AND status='pending' AND lower(reference)=lower(?) ORDER BY id DESC LIMIT 1", (txid,)).fetchone()
+    if not reqrow:
+      return {'ok': True, 'matched': False, 'match_status': 'no_pending_transaction'}
+    expected_method = 'CBE Birr' if payment_method_label(reqrow['method']) == 'CbeBirr' else 'TeleBirr'
+    if abs(float(reqrow['amount'] or 0) - amount) > 0.01 or expected_method != provider:
+      c.execute("UPDATE payment_sms_events SET match_status='details_mismatch' WHERE transaction_id=?", (txid,))
+      return {'ok': True, 'matched': False, 'match_status': 'details_mismatch'}
+    c.execute("UPDATE payment_sms_events SET matched_request_id=?,match_status='matched' WHERE transaction_id=?", (reqrow['id'], txid))
+    c.execute("UPDATE requests SET details=details || ? WHERE id=?", (f' | SMS VERIFIED: {provider}, {amount:.2f} ETB, TX {txid}', reqrow['id']))
+  # Notify admins outside the database transaction. Existing approve callback remains the only way to credit wallet.
+  try:
+    if bot:
+      u = ensure_user(reqrow['uid'])
+      kb = IKB(); kb.row(IBtn('✅ ክፍያውን አረጋግጥ / ፍቀድ', callback_data=f'ap_dep_{reqrow["id"]}'),
+                         IBtn('❌ ውድቅ አድርግ', callback_data=f'rj_dep_{reqrow["id"]}'))
+      msg = f'🟢 SMS ከስልክ ተዛምዷል\n\nRequest #{reqrow["id"]}\n👤 {u["name"]}\n💵 {amount:.2f} ETB\n🏦 {provider}\n🧾 TX: {txid}\n\nWallet የሚጨመረው ከአድሚን ፈቃድ በኋላ ብቻ ነው።'
+      for aid in finance_admin_ids():
+        try: bot.send_message(aid, msg, reply_markup=kb)
+        except Exception: pass
+  except Exception as exc:
+    print('Payment SMS admin notification failed:', type(exc).__name__, str(exc))
+  return {'ok': True, 'matched': True, 'match_status': 'matched', 'request_id': int(reqrow['id'])}
+
+
+@app.get('/api/admin/deposits')
+def api_admin_deposits(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  with get_db() as c:
+    rows = c.execute("""
+      SELECT r.id,r.uid,r.amount,r.method,r.details,r.status,r.created_at,r.reference,
+             u.name,u.phone,
+             EXISTS(SELECT 1 FROM payment_sms_events e
+                    WHERE e.matched_request_id=r.id AND e.match_status='matched') AS device_verified
+      FROM requests r JOIN users u ON u.uid=r.uid
+      WHERE r.req_type='deposit' AND r.status='pending'
+      ORDER BY r.created_at DESC LIMIT 100
+    """).fetchall()
+  return {'requests': [
+    {'id':int(x['id']),'uid':int(x['uid']),'name':str(x['name'] or 'Player'),
+     'phone':str(x['phone'] or ''),'amount':round(float(x['amount'] or 0),2),
+     'method':payment_method_label(x['method']),'details':str(x['details'] or ''),
+     'reference':str(x['reference'] or ''),'created_at':int(x['created_at'] or 0),
+     'device_verified':bool(x['device_verified'])}
+    for x in rows
+  ]}
+
+@app.post('/api/admin/deposits/{request_id}/decision')
+async def api_admin_deposit_decision(request_id: int, req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  if not is_finance_admin(u['uid']):
+    raise HTTPException(403, '⏳ የገቢ ማጽደቅ ተራው አሁን የሌላ አድሚን ነው።')
+  body = await req.json()
+  action = str(body.get('action','')).strip().lower() if isinstance(body,dict) else ''
+  if action not in ('approve','reject'):
+    raise HTTPException(400, 'approve ወይም reject ይምረጡ።')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    rq = c.execute("SELECT * FROM requests WHERE id=? AND req_type='deposit'", (request_id,)).fetchone()
+    if not rq:
+      raise HTTPException(404, 'የገቢ ጥያቄው አልተገኘም።')
+    if rq['status'] != 'pending':
+      raise HTTPException(409, 'ይህ ጥያቄ ቀድሞ ተወስኗል።')
+    uid, amt = int(rq['uid']), float(rq['amount'] or 0)
+    if action == 'approve':
+      verified = c.execute("SELECT id FROM payment_sms_events WHERE matched_request_id=? AND match_status='matched' LIMIT 1", (request_id,)).fetchone()
+      if not verified:
+        raise HTTPException(409, 'APK የክፍያውን Transaction ID፣ Amount እና Provider አላረጋገጠም። Approve ማድረግ አይቻልም።')
+      c.execute("UPDATE requests SET status='approved' WHERE id=? AND status='pending'", (request_id,))
+      c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+? WHERE uid=?', (amt,uid))
+      add_tx(c,uid,'💰',f'ገቢ ጸድቋል ({payment_method_label(rq["method"])})',amt)
+      referrer=c.execute('SELECT referred_by FROM users WHERE uid=?',(uid,)).fetchone()
+      if referrer and referrer['referred_by']:
+        c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+15 WHERE uid=?',(referrer['referred_by'],))
+        c.execute('UPDATE users SET referred_by=NULL WHERE uid=?',(uid,))
+        add_tx(c,referrer['referred_by'],'🎁','የግብዣ ሽልማት',15.0)
+    else:
+      c.execute("UPDATE requests SET status='rejected' WHERE id=? AND status='pending'", (request_id,))
+  try:
+    if bot:
+      note = (f'🎉 የ {amt:.2f} ETB ገቢዎ በአድሚን ጸድቋል። Wallet ተጨምሯል!' if action=='approve'
+              else f'❌ የ {amt:.2f} ETB የገቢ ጥያቄዎ በአድሚን ውድቅ ተደርጓል። እባክዎ የክፍያ መረጃውን ያረጋግጡ።')
+      bot.send_message(uid,note)
+  except Exception as exc:
+    print('Deposit decision player notification failed:',type(exc).__name__,str(exc))
+  return {'ok':True,'status':'approved' if action=='approve' else 'rejected','amount':amt,'uid':uid}
+
+@app.get('/api/admin/profit')
+def api_admin_profit(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  with get_db() as c:
+    house = c.execute('SELECT total_commission,total_rounds FROM house_stats WHERE id=1').fetchone() or {'total_commission': 0, 'total_rounds': 0}
+    payouts = c.execute('SELECT COALESCE(SUM(prize),0) AS total FROM game_payouts').fetchone()
+    recent = c.execute("SELECT COALESCE(SUM(gross),0) AS gross, COALESCE(SUM(prize),0) AS prize, COALESCE(SUM(commission),0) AS profit, COUNT(*) AS rounds FROM house_profit_events WHERE created_at >= ?", (int(time.time())-30*86400,)).fetchone()
+    by_stake = c.execute("SELECT stake, COALESCE(SUM(gross),0) AS gross, COALESCE(SUM(prize),0) AS prize, COALESCE(SUM(commission),0) AS profit, COUNT(*) AS rounds FROM house_profit_events GROUP BY stake ORDER BY stake").fetchall()
+  return {'lifetime_profit': round(float(house['total_commission'] or 0),2), 'lifetime_rounds': int(house['total_rounds'] or 0), 'lifetime_payouts': round(float(payouts['total'] or 0),2), 'recent_30d': dict(recent), 'by_stake': [dict(x) for x in by_stake], 'detail_tracking_since': 'feature_launch'}
+
+@app.post('/api/admin/games/control')
+async def api_admin_games_control(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  body = await req.json()
+  action = body.get('action') if isinstance(body, dict) else None
+  if action not in ('pause', 'resume'):
+    raise HTTPException(400, 'pause ወይም resume ብቻ ይፈቀዳል!')
+  paused = set_games_paused(action == 'pause')
+  return {'ok': True, 'games_paused': paused}
+
+
+
+@app.get('/api/admin/backup')
+def api_admin_backup(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  stamp = time.strftime('%Y%m%d_%H%M%S', time.gmtime())
+  archive = io.BytesIO()
+  try:
+    with get_db() as c:
+      c.execute('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY')
+      tables = c.execute("""
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema='public' AND table_type='BASE TABLE'
+        ORDER BY table_name
+      """).fetchall()
+      with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+        manifest = {'database': 'Royal Bingo PostgreSQL', 'created_at_utc': stamp, 'format': 'JSON per table'}
+        zf.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
+        for item in tables:
+          table = str(item['table_name'])
+          safe_table = table.replace('"', '""')
+          rows = c.execute('SELECT * FROM "' + safe_table + '"').fetchall()
+          payload = json.dumps([dict(row) for row in rows], ensure_ascii=False, default=str, indent=2)
+          zf.writestr('tables/' + table + '.json', payload)
+  except Exception as exc:
+    print('Admin database backup failed:', type(exc).__name__, str(exc))
+    raise HTTPException(500, 'DB Backup ማዘጋጀት አልተቻለም። እባክዎ እንደገና ይሞክሩ።')
+  return Response(
+    content=archive.getvalue(),
+    media_type='application/zip',
+    headers={'Content-Disposition': f'attachment; filename="royal_bingo_backup_{stamp}.zip"'}
+  )
+
+
+@app.get('/api/admin/users')
+def api_admin_users(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  with get_db() as c:
+    rows = c.execute('SELECT uid,name,phone,play_wallet,win_wallet,matches_played,wins,created_at FROM users ORDER BY created_at DESC LIMIT 100').fetchall()
+  return {'users': [
+    {'uid': int(r['uid']), 'name': str(r['name'] or 'Player'), 'phone': str(r['phone'] or ''),
+     'wallet': round(float(r['play_wallet'] or 0) + float(r['win_wallet'] or 0), 2),
+     'matches_played': int(r['matches_played'] or 0), 'wins': int(r['wins'] or 0)}
+    for r in rows
+  ]}
+
+@app.post('/api/admin/wallet/adjust')
+async def api_admin_wallet_adjust(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  body = await req.json()
+  player_id = str(body.get('player_id', '')).strip() if isinstance(body, dict) else ''
+  action = body.get('action') if isinstance(body, dict) else None
+  try:
+    amount = float(body.get('amount', 0))
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
+  if not player_id or len(player_id) > 32 or action not in ('add', 'subtract') or not math.isfinite(amount) or amount <= 0 or amount > 1000000:
+    raise HTTPException(400, 'Player ID እና ከ0 በላይ ትክክለኛ መጠን ያስገቡ!')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    row = c.execute('SELECT uid,phone FROM users WHERE phone=?', (player_id,)).fetchone()
+    if not row and player_id.isdigit():
+      row = c.execute('SELECT uid,phone FROM users WHERE uid=?', (int(player_id),)).fetchone()
+    if not row:
+      raise HTTPException(404, 'ይህ Player ID አልተገኘም!')
+    uid = int(row['uid'])
+    if action == 'add':
+      c.execute('UPDATE users SET play_wallet=play_wallet+? WHERE uid=?', (amount, uid))
+      add_tx(c, uid, '🎁', 'አድሚን ጨምሯል', amount)
+    else:
+      c.execute('UPDATE users SET play_wallet=GREATEST(0,play_wallet-?) WHERE uid=?', (amount, uid))
+      add_tx(c, uid, '➖', 'አድሚን ቀንሷል', -amount)
+    updated = c.execute('SELECT play_wallet,win_wallet FROM users WHERE uid=?', (uid,)).fetchone()
+  return {'ok': True, 'uid': uid, 'phone': str(row['phone'] or ''), 'wallet': round(float(updated['play_wallet'] or 0) + float(updated['win_wallet'] or 0), 2)}
+
+@app.post('/api/admin/settings/min-players')
+async def api_admin_min_players(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  body = await req.json()
+  try:
+    value = int(body.get('value', MIN_PLAYERS)) if isinstance(body, dict) else MIN_PLAYERS
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'ትክክለኛ ቁጥር ያስገቡ!')
+  if value < 1 or value > 400:
+    raise HTTPException(400, 'ዝቅተኛ ተጫዋች ከ1 እስከ 400 መሆን አለበት!')
+  return {'ok': True, 'min_players': set_min_players(value)}
+
+@app.post('/api/admin/finance/switch')
+async def api_admin_finance_switch(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  try:
+    return {'ok': True, 'finance_rotation': switch_finance_turn()}
+  except ValueError as exc:
+    raise HTTPException(409, str(exc))
+
+@app.post('/api/admin/broadcast')
+async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  if not bot:
+    raise HTTPException(503, 'Telegram Bot አልተገናኘም!')
+  b = await req.json()
+  raw_message = b.get('message') if isinstance(b, dict) else None
+  message = raw_message.strip() if isinstance(raw_message, str) else ''
+  image_data = b.get('image') if isinstance(b, dict) else None
+  image_bytes, image_name = None, 'announcement.jpg'
+  if not message or message.lower() == 'none' or len(message) > 4000:
+    raise HTTPException(400, 'መልእክቱ ባዶ ነው፤ ከ1 እስከ 4000 ቁምፊ ይጻፉ!')
+  if image_data:
+    if not isinstance(image_data, str) or ',' not in image_data:
+      raise HTTPException(400, 'የምስሉ ፋይል ትክክል አይደለም!')
+    image_header, encoded = image_data.split(',', 1)
+    if 'image/jpeg' in image_header:
+      image_name = 'announcement.jpg'
+    elif 'image/png' in image_header:
+      image_name = 'announcement.png'
+    elif 'image/webp' in image_header:
+      image_name = 'announcement.webp'
+    else:
+      raise HTTPException(400, 'JPG, PNG ወይም WEBP ምስል ብቻ ይጠቀሙ!')
+    try:
+      image_bytes = base64.b64decode(encoded, validate=True)
+    except Exception:
+      raise HTTPException(400, 'የምስሉ ፋይል ማንበብ አልተቻለም!')
+    if not image_bytes or len(image_bytes) > 8 * 1024 * 1024:
+      raise HTTPException(413, 'ምስሉ ከ8MB በታች መሆን አለበት!')
+    if len(message) > 900:
+      raise HTTPException(400, 'ምስል ሲያያዝ መልእክቱ ከ900 ቁምፊ መብለጥ የለበትም!')
+  with get_db() as c:
+    uids = [row[0] for row in c.execute('SELECT uid FROM users ORDER BY created_at').fetchall()]
+  keyboard = IKB()
+  keyboard.add(IBtn('🎮 Play Now', web_app=WebAppInfo(url=APP_URL)))
+  sent, failed = 0, 0
+  for uid in uids:
+    try:
+      if image_bytes:
+        photo = io.BytesIO(image_bytes)
+        photo.name = image_name
+        try:
+          bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\n\n{message}')
+          time.sleep(0.15)
+          bot.send_message(uid, '👇 ጨዋታውን ለመክፈት ከታች ይጫኑ፦', reply_markup=keyboard)
+        except Exception as photo_exc:
+          print(f'Photo broadcast failed for {uid}: {type(photo_exc).__name__}: {photo_exc}')
+          # Always deliver the text announcement with the Play Now button
+          # even when Telegram cannot accept the attached image.
+          bot.send_message(uid, f'📢 ማስታወቂያ\n\n{message}', reply_markup=keyboard)
+      else:
+        bot.send_message(uid, f'📢 ማስታወቂያ\n\n{message}', reply_markup=keyboard)
+      sent += 1
+      time.sleep(0.05)
+    except Exception as exc:
+      failed += 1
+      print(f'Broadcast failed for {uid}: {type(exc).__name__}: {exc}')
+  return {'ok': True, 'sent': sent, 'failed': failed, 'total': len(uids)}
+
+@app.post('/api/withdraw')
+async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  ensure_finance_service_open(u['uid'])
+  b = await req.json()
+  try: amt = float(b.get('amount', 0))
+  except (TypeError, ValueError): raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
+  raw_phone = str(b.get('phone', '')).strip()
+  # Accept Ethiopian mobile numbers in local (09XXXXXXXX) or international
+  # (+2519XXXXXXXX / 2519XXXXXXXX) format; store a consistent local number.
+  phone_digits = ''.join(ch for ch in raw_phone if ch.isdigit())
+  if phone_digits.startswith('251') and len(phone_digits) == 12:
+    ph = '0' + phone_digits[3:]
+  elif len(phone_digits) == 10 and phone_digits.startswith('09'):
+    ph = phone_digits
+  else:
+    ph = ''
+  method = str(b.get('method', 'TeleBirr')).strip()
+  if method not in ('TeleBirr', 'CBE Birr', 'CbeBirr'):
+    raise HTTPException(400, 'TeleBirr ወይም CbeBirr ይምረጡ!')
+  if not math.isfinite(amt) or amt < 100 or amt > 1000000 or not ph:
+    raise HTTPException(400, 'ዝቅተኛ 100 ETB እና ትክክለኛ 09XXXXXXXX ስልክ ቁጥር ያስገቡ!')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    if available_wallet(c, u['uid']) < amt: raise HTTPException(400, 'በቂ ያልሆነ ባላንስ አለዎት!')
+    rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at) VALUES (?,?,?,?,?,?,?)',
+                    ('withdraw', u['uid'], amt, method, f'PENDING RESERVED | App Account: {ph}', 'pending', int(time.time()))).lastrowid
+  try:
+    # Send the request only to the admin whose finance turn is currently active.
+    aids = finance_admin_ids()
+    if bot and aids:
+      kb = IKB()
+      kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
+      player_phone = u.get('phone') or 'Not registered'
+      msg = f'🔔 አዲስ የወጪ ጥያቄ!\\n\\n🆔 Request #{rid}\\n👤 {u["name"]}\\n🆔 Player ID: {player_phone}\\n💵 {amt:.2f} ETB\\n🏦 የወጪ ዘዴ: {payment_method_label(method)}\\n📱 የተቀባይ ቁጥር: {ph}\\n⏳ ሁኔታ: PENDING'
+      for aid in aids:
+        try:
+          bot.send_message(aid, msg, reply_markup=kb)
+        except Exception:
+          pass
+  except Exception:
+    pass
+  return {'ok': True}
+ + salt.hex() + '(stake: int = 10, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if stake not in rooms: raise HTTPException(400, 'ልክ ያልሆነ የጨዋታ ክፍል!')
+  r = rooms[stake]
+  admin_view = is_adm(u['uid'])
+  with room_lock:
+    my_c = sorted([k for k, v in r['cards'].items() if v['uid'] == u['uid']])
+    tk_c = sorted([k for k, v in r['cards'].items() if v['uid'] != u['uid']])
+    snap = {'stake': r['stake'], 'phase': r['phase'], 'countdown': r['countdown'], 'players': n_players(r),
+            'min_players': min_players_for(stake), 'total_cards': len(r['cards']), 'derash': derash(r),
+            'taken_cards': tk_c, 'my_cards': my_c, 'my_boards': {str(n): r['cards'][n]['grid'] for n in my_c},
+            'called': r['called'], 'winner': r['winner'], 'winner_left': max(0, int(r['win_until'] - time.time())) if r['phase'] == 'WINNER' else 0}
+    admin_rooms = {}
+    if admin_view:
+      for room_stake, room in rooms.items():
+        admin_rooms[str(room_stake)] = {'stake': room_stake, 'phase': room['phase'], 'players': n_players(room), 'derash': derash(room), 'called': list(room['called']), 'upcoming': list(reversed(room['deck'])) if room['phase'] == 'PLAYING' else [], 'remaining': len(room['deck']), 'total_cards': len(room['cards'])}
+  with get_db() as c:
+    txs = [dict(x) for x in c.execute('SELECT icon,title,amount,created_at, NULL AS status FROM transactions WHERE uid=? ORDER BY id DESC LIMIT 25', (u['uid'],)).fetchall()]
+    pending = [dict(x) for x in c.execute("SELECT '⏳' AS icon, 'የወጪ ጥያቄ ('||method||') - PENDING' AS title, -amount AS amount, created_at, status FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending' AND details LIKE 'PENDING RESERVED |%' ORDER BY id DESC LIMIT 25", (u['uid'],)).fetchall()]
+    txs = sorted(txs + pending, key=lambda x: x['created_at'], reverse=True)[:25]
+    top = [dict(x) for x in c.execute('SELECT name,total_won FROM users WHERE total_won>0 ORDER BY total_won DESC LIMIT 10').fetchall()]
+  return {'games_paused': GAME_PAUSED, 'admin_rooms': admin_rooms if admin_view else None, 'finance_service': finance_service_status(), 'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': admin_view,
+          'finance_rotation': finance_rotation_status() if admin_view else None,
+          'config': {**active_payment_accounts(), 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
+
+@app.post('/api/buy_card')
+async def api_buy(req: Request, x_tg_init_data: str = Header(default='')):
+  u, b = auth_user(x_tg_init_data), await req.json()
+  try: st, cno = int(b.get('stake', 10)), int(b.get('card_no', 0))
+  except (TypeError, ValueError): raise HTTPException(400, 'ልክ ያልሆነ ካርድ!')
+  if st not in rooms or not (1 <= cno <= 400): raise HTTPException(400, 'ልክ ያልሆነ ካርድ!')
+  with room_lock:
+    r = rooms[st]
+    if r['phase'] not in ('WAITING', 'COUNTDOWN'): raise HTTPException(400, 'ጨዋታው ተጀምሯል!')
+    if cno in r['cards']:
+      if r['cards'][cno]['uid'] == u['uid']:
+        with get_db() as c:
+          c.execute('BEGIN IMMEDIATE')
+          c.execute('UPDATE users SET play_wallet=play_wallet+? WHERE uid=?', (st, u['uid']))
+          add_tx(c, u['uid'], '↩️', f'ካርድ #{cno} ተሰርዟል', st)
+          del r['cards'][cno]
+          save_room(r, c)
+        return {'ok': True, 'action': 'removed'}
+      raise HTTPException(400, f'ካርድ #{cno} ተይዟል!')
+    if sum(1 for v in r['cards'].values() if v['uid'] == u['uid']) >= 4: raise HTTPException(400, 'እስከ 4 ካርድ ብቻ!')
+    with get_db() as c:
+      c.execute('BEGIN IMMEDIATE')
+      wallet = c.execute('SELECT play_wallet FROM users WHERE uid=?', (u['uid'],)).fetchone()
+      if not wallet or available_wallet(c, u['uid']) < st: raise HTTPException(400, 'በቂ Play Wallet የለዎትም! ገቢ ያድርጉ።')
+      c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=?', (st, u['uid'])); add_tx(c, u['uid'], '🎴', f'ካርድ #{cno} ({st} ብር)', -st)
+      r['cards'][cno] = {'uid': u['uid'], 'name': u['name'], 'grid': gen_card(cno)}
+      save_room(r, c)
+    return {'ok': True, 'action': 'bought'}
+
+@app.post('/api/claim_bingo')
+async def api_claim(req: Request, x_tg_init_data: str = Header(default='')):
+  u, b = auth_user(x_tg_init_data), await req.json()
+  try: st, cno = int(b.get('stake', 10)), int(b.get('card_no', 0))
+  except (TypeError, ValueError): raise HTTPException(400, 'ልክ ያልሆነ ክፍል/ካርድ!')
+  if st not in rooms or not (1 <= cno <= 400): raise HTTPException(400, 'ልክ ያልሆነ ክፍል/ካርድ!')
+  with room_lock:
+    r = rooms[st]
+    if r['phase'] != 'PLAYING': raise HTTPException(400, 'ጨዋታው አልተጀመረም!')
+    own = r['cards'].get(cno)
+    if not own or own['uid'] != u['uid']: raise HTTPException(403, 'ይህ ካርድ የእርስዎ አይደለም!')
+    wl = check_win(own['grid'], set(r['called']))
+    if not wl: raise HTTPException(400, 'ገና BINGO አልተሟላም!')
+    finish_round(r, u['uid'], u['name'], cno, wl)
+    return {'ok': True, 'prize': r['winner']['prize']}
+
+@app.post('/api/transfer')
+async def api_transfer(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  body = await req.json()
+  phone = normalize_phone(body.get('phone'))
+  try:
+    amt = round(float(body.get('amount', 0)), 2)
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'የሚላከው ብር መጠን ትክክል አይደለም።')
+  if not phone or len(re.sub(r'\D', '', phone)) != 12:
+    raise HTTPException(400, 'የተቀባዩን የተመዘገበ ስልክ ቁጥር በትክክል ያስገቡ።')
+  if not math.isfinite(amt) or amt < 1 or amt > 100000:
+    raise HTTPException(400, 'ዝቅተኛው 1 ETB ነው፤ የብር መጠኑን ያረጋግጡ።')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    c.execute('SELECT uid FROM users WHERE uid=? FOR UPDATE', (u['uid'],))
+    matches = c.execute('SELECT uid, name FROM users WHERE phone=?', (phone,)).fetchall()
+    if not matches:
+      raise HTTPException(404, 'ይህ ስልክ ቁጥር በRoyal Bingo አልተመዘገበም።')
+    if len(matches) != 1:
+      raise HTTPException(409, 'ይህ ስልክ ቁጥር ከአንድ ተጫዋች ጋር ተያይዟል፤ ድጋፍን ያነጋግሩ።')
+    receiver = matches[0]
+    if int(receiver['uid']) == int(u['uid']):
+      raise HTTPException(400, 'ገንዘብን ወደ ራስዎ መላክ አይችሉም።')
+    available = available_wallet(c, u['uid'])
+    if available < amt:
+      raise HTTPException(400, f'በቂ ባላንስ የለዎትም። የሚገኘው {available:.2f} ETB ነው።')
+    c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)-? WHERE uid=?', (amt, u['uid']))
+    c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+? WHERE uid=?', (amt, receiver['uid']))
+    add_tx(c, u['uid'], '↗️', f'ለ {receiver["name"]} የተላከ ብር', -amt)
+    add_tx(c, receiver['uid'], '↙️', f'ከ {u["name"]} የተቀበለ ብር', amt)
+  return {'ok': True, 'amount': amt, 'recipient': receiver['name']}
+
+@app.post('/api/deposit')
+async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  ensure_finance_service_open(u['uid'])
+  b = await req.json()
+  method = str(b.get('method', 'TeleBirr')).strip()
+  if method not in ('TeleBirr', 'CBE Birr', 'CbeBirr'):
+    raise HTTPException(400, 'TeleBirr ወይም CbeBirr ይምረጡ!')
+  sms = str(b.get('sms', '')).strip()
+  parsed = parse_payment_sms(sms, method)
+  if not parsed:
+    raise HTTPException(400, 'ሙሉ የTeleBirr/CBE የክፍያ SMS ይላኩ። Amount እና Transaction ID በSMS ውስጥ መኖር አለባቸው!')
+  amt, tx = parsed
+  if not math.isfinite(amt) or amt < 20 or amt > 1000000:
+    raise HTTPException(400, 'በSMS ውስጥ ያለው መጠን 20 ETB እስከ 1,000,000 ETB መሆን አለበት!')
+  try: rid = notify_req('deposit', u['uid'], amt, method, f'Full payment SMS:\\n{sms[:2500]}', reference=tx)
+  except sqlite3.IntegrityError: raise HTTPException(409, 'ይህ Transaction ID ቀድሞ ተጠቅሟል!')
+  # The bank notification may arrive before the player submits the SMS. Match any
+  # previously captured, still-unmatched device event as soon as the request exists.
+  with get_db() as c:
+    event = c.execute("SELECT provider,amount,transaction_id FROM payment_sms_events WHERE lower(transaction_id)=lower(?) AND matched_request_id IS NULL ORDER BY id DESC LIMIT 1", (tx,)).fetchone()
+    if event:
+      expected_provider = 'CBE Birr' if payment_method_label(method) == 'CbeBirr' else 'TeleBirr'
+      valid = abs(float(event['amount'] or 0)-amt) <= 0.01 and event['provider'] == expected_provider
+      if valid:
+        c.execute("UPDATE payment_sms_events SET matched_request_id=?,match_status='matched' WHERE lower(transaction_id)=lower(?) AND matched_request_id IS NULL", (rid,tx))
+        c.execute("UPDATE requests SET details=details || ? WHERE id=?", (f' | APK VERIFIED: {event["provider"]}, {amt:.2f} ETB, TX {tx}',rid))
+      else:
+        c.execute("UPDATE payment_sms_events SET matched_request_id=?,match_status='details_mismatch' WHERE lower(transaction_id)=lower(?) AND matched_request_id IS NULL", (rid,tx))
+  if event and bot:
+    try:
+      player = ensure_user(u['uid'])
+      kb = IKB()
+      if valid:
+        kb.row(IBtn('✅ APK አረጋግጧል — ፍቀድ', callback_data=f'ap_dep_{rid}'),
+               IBtn('❌ ውድቅ አድርግ', callback_data=f'rj_dep_{rid}'))
+        message = f'🟢 APK የክፍያውን መረጃ አረጋግጧል\\nRequest #{rid}\\n👤 {player["name"]}\\n💵 {amt:.2f} ETB\\n🏦 {expected_provider}\\n🧾 TX: {tx}'
+      else:
+        kb.row(IBtn('❌ ውድቅ አድርግ', callback_data=f'rj_dep_{rid}'))
+        message = f'🔴 የክፍያ መረጃ አልተዛመደም — Approve አይፈቀድም!\\nRequest #{rid}\\n👤 {player["name"]}\\nSMS: {amt:.2f} ETB / {payment_method_label(method)}\\nAPK: {float(event["amount"]):.2f} ETB / {event["provider"]}\\nTX: {tx}'
+      for aid in finance_admin_ids():
+        try: bot.send_message(aid,message,reply_markup=kb)
+        except Exception: pass
+    except Exception as exc:
+      print('Pre-captured payment event review notification failed:',type(exc).__name__,str(exc))
+  return {'ok': True, 'amount': amt, 'transaction_id': tx}
+
+
+# Admin pairs the Android companion app using a short-lived one-time code.
+@app.post('/api/admin/payment-device/pair-code')
+def api_payment_device_pair_code(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  code = ''.join(secrets.choice('23456789ABCDEFGHJKLMNPQRSTUVWXYZ') for _ in range(8))
+  digest = hashlib.sha256(code.encode()).hexdigest()
+  now = int(time.time())
+  with get_db() as c:
+    c.execute('UPDATE payment_pairing_codes SET used_at=? WHERE created_by=? AND used_at IS NULL', (now, u['uid']))
+    c.execute('INSERT INTO payment_pairing_codes(code_hash,created_by,expires_at,used_at) VALUES(?,?,?,NULL)', (digest, u['uid'], now + 300))
+  return {'ok': True, 'pairing_code': code, 'expires_in_seconds': 300}
+
+@app.post('/api/payment-device/enroll')
+async def api_payment_device_enroll(req: Request):
+  body = await req.json()
+  code = str(body.get('pairing_code', '')).strip().upper() if isinstance(body, dict) else ''
+  label = str(body.get('label', 'Royal Bingo Admin Phone')).strip()[:80]
+  if len(code) != 8:
+    raise HTTPException(400, 'የPairing Code ትክክል አይደለም!')
+  now = int(time.time())
+  digest = hashlib.sha256(code.encode()).hexdigest()
+  token = secrets.token_urlsafe(40)
+  with get_db() as c:
+    row = c.execute('SELECT code_hash,created_by,expires_at,used_at FROM payment_pairing_codes WHERE code_hash=?', (digest,)).fetchone()
+    if not row or row['used_at'] is not None or int(row['expires_at']) < now:
+      raise HTTPException(400, 'Pairing Code ጊዜው አልፏል ወይም ተጠቅሟል። አዲስ Code ይፍጠሩ።')
+    c.execute('UPDATE payment_pairing_codes SET used_at=? WHERE code_hash=? AND used_at IS NULL', (now, digest))
+    c.execute('INSERT INTO payment_devices(token_hash,label,active,created_at) VALUES(?,?,1,?)', (hashlib.sha256(token.encode()).hexdigest(), label or 'Royal Bingo Admin Phone', now))
+  return {'ok': True, 'device_token': token, 'message': 'Token አንድ ጊዜ ብቻ ይታያል፤ በስልኩ ውስጥ በደህና ያስቀምጡት።'}
+
+@app.post('/api/payment-device/notification')
+async def api_payment_device_notification(req: Request, authorization: str = Header(default='')):
+  if not authorization.startswith('Bearer '):
+    raise HTTPException(401, 'Device authentication required')
+  token = authorization[7:].strip()
+  if len(token) < 40:
+    raise HTTPException(401, 'Invalid device token')
+  token_hash = hashlib.sha256(token.encode()).hexdigest()
+  body = await req.json()
+  if not isinstance(body, dict):
+    raise HTTPException(400, 'Invalid notification data')
+  provider = str(body.get('provider', '')).strip()
+  txid = str(body.get('transaction_id', '')).strip()
+  try:
+    amount = float(body.get('amount'))
+    received_at = int(body.get('received_at') or time.time())
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'Amount or timestamp is invalid')
+  if provider not in ('TeleBirr', 'CBE Birr') or not math.isfinite(amount) or amount <= 0 or amount > 10000000 or len(txid) < 4 or len(txid) > 120:
+    raise HTTPException(400, 'Provider, amount or transaction ID is invalid')
+  now = int(time.time())
+  with get_db() as c:
+    device = c.execute('SELECT id FROM payment_devices WHERE token_hash=? AND active=1', (token_hash,)).fetchone()
+    if not device:
+      raise HTTPException(401, 'Device is not paired or has been revoked')
+    c.execute('UPDATE payment_devices SET last_seen=? WHERE id=?', (now, device['id']))
+    try:
+      c.execute('INSERT INTO payment_sms_events(provider,transaction_id,amount,received_at,matched_request_id,match_status,created_at) VALUES(?,?,?,?,NULL,?,?)',
+                (provider, txid, amount, received_at, 'unmatched', now))
+    except sqlite3.IntegrityError:
+      return {'ok': True, 'duplicate': True, 'match_status': 'duplicate'}
+    reqrow = c.execute("SELECT id,uid,amount,method FROM requests WHERE req_type='deposit' AND status='pending' AND lower(reference)=lower(?) ORDER BY id DESC LIMIT 1", (txid,)).fetchone()
+    if not reqrow:
+      return {'ok': True, 'matched': False, 'match_status': 'no_pending_transaction'}
+    expected_method = 'CBE Birr' if payment_method_label(reqrow['method']) == 'CbeBirr' else 'TeleBirr'
+    if abs(float(reqrow['amount'] or 0) - amount) > 0.01 or expected_method != provider:
+      c.execute("UPDATE payment_sms_events SET match_status='details_mismatch' WHERE transaction_id=?", (txid,))
+      return {'ok': True, 'matched': False, 'match_status': 'details_mismatch'}
+    c.execute("UPDATE payment_sms_events SET matched_request_id=?,match_status='matched' WHERE transaction_id=?", (reqrow['id'], txid))
+    c.execute("UPDATE requests SET details=details || ? WHERE id=?", (f' | SMS VERIFIED: {provider}, {amount:.2f} ETB, TX {txid}', reqrow['id']))
+  # Notify admins outside the database transaction. Existing approve callback remains the only way to credit wallet.
+  try:
+    if bot:
+      u = ensure_user(reqrow['uid'])
+      kb = IKB(); kb.row(IBtn('✅ ክፍያውን አረጋግጥ / ፍቀድ', callback_data=f'ap_dep_{reqrow["id"]}'),
+                         IBtn('❌ ውድቅ አድርግ', callback_data=f'rj_dep_{reqrow["id"]}'))
+      msg = f'🟢 SMS ከስልክ ተዛምዷል\n\nRequest #{reqrow["id"]}\n👤 {u["name"]}\n💵 {amount:.2f} ETB\n🏦 {provider}\n🧾 TX: {txid}\n\nWallet የሚጨመረው ከአድሚን ፈቃድ በኋላ ብቻ ነው።'
+      for aid in finance_admin_ids():
+        try: bot.send_message(aid, msg, reply_markup=kb)
+        except Exception: pass
+  except Exception as exc:
+    print('Payment SMS admin notification failed:', type(exc).__name__, str(exc))
+  return {'ok': True, 'matched': True, 'match_status': 'matched', 'request_id': int(reqrow['id'])}
+
+
+@app.get('/api/admin/deposits')
+def api_admin_deposits(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  with get_db() as c:
+    rows = c.execute("""
+      SELECT r.id,r.uid,r.amount,r.method,r.details,r.status,r.created_at,r.reference,
+             u.name,u.phone,
+             EXISTS(SELECT 1 FROM payment_sms_events e
+                    WHERE e.matched_request_id=r.id AND e.match_status='matched') AS device_verified
+      FROM requests r JOIN users u ON u.uid=r.uid
+      WHERE r.req_type='deposit' AND r.status='pending'
+      ORDER BY r.created_at DESC LIMIT 100
+    """).fetchall()
+  return {'requests': [
+    {'id':int(x['id']),'uid':int(x['uid']),'name':str(x['name'] or 'Player'),
+     'phone':str(x['phone'] or ''),'amount':round(float(x['amount'] or 0),2),
+     'method':payment_method_label(x['method']),'details':str(x['details'] or ''),
+     'reference':str(x['reference'] or ''),'created_at':int(x['created_at'] or 0),
+     'device_verified':bool(x['device_verified'])}
+    for x in rows
+  ]}
+
+@app.post('/api/admin/deposits/{request_id}/decision')
+async def api_admin_deposit_decision(request_id: int, req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  if not is_finance_admin(u['uid']):
+    raise HTTPException(403, '⏳ የገቢ ማጽደቅ ተራው አሁን የሌላ አድሚን ነው።')
+  body = await req.json()
+  action = str(body.get('action','')).strip().lower() if isinstance(body,dict) else ''
+  if action not in ('approve','reject'):
+    raise HTTPException(400, 'approve ወይም reject ይምረጡ።')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    rq = c.execute("SELECT * FROM requests WHERE id=? AND req_type='deposit'", (request_id,)).fetchone()
+    if not rq:
+      raise HTTPException(404, 'የገቢ ጥያቄው አልተገኘም።')
+    if rq['status'] != 'pending':
+      raise HTTPException(409, 'ይህ ጥያቄ ቀድሞ ተወስኗል።')
+    uid, amt = int(rq['uid']), float(rq['amount'] or 0)
+    if action == 'approve':
+      verified = c.execute("SELECT id FROM payment_sms_events WHERE matched_request_id=? AND match_status='matched' LIMIT 1", (request_id,)).fetchone()
+      if not verified:
+        raise HTTPException(409, 'APK የክፍያውን Transaction ID፣ Amount እና Provider አላረጋገጠም። Approve ማድረግ አይቻልም።')
+      c.execute("UPDATE requests SET status='approved' WHERE id=? AND status='pending'", (request_id,))
+      c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+? WHERE uid=?', (amt,uid))
+      add_tx(c,uid,'💰',f'ገቢ ጸድቋል ({payment_method_label(rq["method"])})',amt)
+      referrer=c.execute('SELECT referred_by FROM users WHERE uid=?',(uid,)).fetchone()
+      if referrer and referrer['referred_by']:
+        c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+15 WHERE uid=?',(referrer['referred_by'],))
+        c.execute('UPDATE users SET referred_by=NULL WHERE uid=?',(uid,))
+        add_tx(c,referrer['referred_by'],'🎁','የግብዣ ሽልማት',15.0)
+    else:
+      c.execute("UPDATE requests SET status='rejected' WHERE id=? AND status='pending'", (request_id,))
+  try:
+    if bot:
+      note = (f'🎉 የ {amt:.2f} ETB ገቢዎ በአድሚን ጸድቋል። Wallet ተጨምሯል!' if action=='approve'
+              else f'❌ የ {amt:.2f} ETB የገቢ ጥያቄዎ በአድሚን ውድቅ ተደርጓል። እባክዎ የክፍያ መረጃውን ያረጋግጡ።')
+      bot.send_message(uid,note)
+  except Exception as exc:
+    print('Deposit decision player notification failed:',type(exc).__name__,str(exc))
+  return {'ok':True,'status':'approved' if action=='approve' else 'rejected','amount':amt,'uid':uid}
+
+@app.get('/api/admin/profit')
+def api_admin_profit(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  with get_db() as c:
+    house = c.execute('SELECT total_commission,total_rounds FROM house_stats WHERE id=1').fetchone() or {'total_commission': 0, 'total_rounds': 0}
+    payouts = c.execute('SELECT COALESCE(SUM(prize),0) AS total FROM game_payouts').fetchone()
+    recent = c.execute("SELECT COALESCE(SUM(gross),0) AS gross, COALESCE(SUM(prize),0) AS prize, COALESCE(SUM(commission),0) AS profit, COUNT(*) AS rounds FROM house_profit_events WHERE created_at >= ?", (int(time.time())-30*86400,)).fetchone()
+    by_stake = c.execute("SELECT stake, COALESCE(SUM(gross),0) AS gross, COALESCE(SUM(prize),0) AS prize, COALESCE(SUM(commission),0) AS profit, COUNT(*) AS rounds FROM house_profit_events GROUP BY stake ORDER BY stake").fetchall()
+  return {'lifetime_profit': round(float(house['total_commission'] or 0),2), 'lifetime_rounds': int(house['total_rounds'] or 0), 'lifetime_payouts': round(float(payouts['total'] or 0),2), 'recent_30d': dict(recent), 'by_stake': [dict(x) for x in by_stake], 'detail_tracking_since': 'feature_launch'}
+
+@app.post('/api/admin/games/control')
+async def api_admin_games_control(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  body = await req.json()
+  action = body.get('action') if isinstance(body, dict) else None
+  if action not in ('pause', 'resume'):
+    raise HTTPException(400, 'pause ወይም resume ብቻ ይፈቀዳል!')
+  paused = set_games_paused(action == 'pause')
+  return {'ok': True, 'games_paused': paused}
+
+
+
+@app.get('/api/admin/backup')
+def api_admin_backup(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  stamp = time.strftime('%Y%m%d_%H%M%S', time.gmtime())
+  archive = io.BytesIO()
+  try:
+    with get_db() as c:
+      c.execute('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY')
+      tables = c.execute("""
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema='public' AND table_type='BASE TABLE'
+        ORDER BY table_name
+      """).fetchall()
+      with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+        manifest = {'database': 'Royal Bingo PostgreSQL', 'created_at_utc': stamp, 'format': 'JSON per table'}
+        zf.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
+        for item in tables:
+          table = str(item['table_name'])
+          safe_table = table.replace('"', '""')
+          rows = c.execute('SELECT * FROM "' + safe_table + '"').fetchall()
+          payload = json.dumps([dict(row) for row in rows], ensure_ascii=False, default=str, indent=2)
+          zf.writestr('tables/' + table + '.json', payload)
+  except Exception as exc:
+    print('Admin database backup failed:', type(exc).__name__, str(exc))
+    raise HTTPException(500, 'DB Backup ማዘጋጀት አልተቻለም። እባክዎ እንደገና ይሞክሩ።')
+  return Response(
+    content=archive.getvalue(),
+    media_type='application/zip',
+    headers={'Content-Disposition': f'attachment; filename="royal_bingo_backup_{stamp}.zip"'}
+  )
+
+
+@app.get('/api/admin/users')
+def api_admin_users(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  with get_db() as c:
+    rows = c.execute('SELECT uid,name,phone,play_wallet,win_wallet,matches_played,wins,created_at FROM users ORDER BY created_at DESC LIMIT 100').fetchall()
+  return {'users': [
+    {'uid': int(r['uid']), 'name': str(r['name'] or 'Player'), 'phone': str(r['phone'] or ''),
+     'wallet': round(float(r['play_wallet'] or 0) + float(r['win_wallet'] or 0), 2),
+     'matches_played': int(r['matches_played'] or 0), 'wins': int(r['wins'] or 0)}
+    for r in rows
+  ]}
+
+@app.post('/api/admin/wallet/adjust')
+async def api_admin_wallet_adjust(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  body = await req.json()
+  player_id = str(body.get('player_id', '')).strip() if isinstance(body, dict) else ''
+  action = body.get('action') if isinstance(body, dict) else None
+  try:
+    amount = float(body.get('amount', 0))
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
+  if not player_id or len(player_id) > 32 or action not in ('add', 'subtract') or not math.isfinite(amount) or amount <= 0 or amount > 1000000:
+    raise HTTPException(400, 'Player ID እና ከ0 በላይ ትክክለኛ መጠን ያስገቡ!')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    row = c.execute('SELECT uid,phone FROM users WHERE phone=?', (player_id,)).fetchone()
+    if not row and player_id.isdigit():
+      row = c.execute('SELECT uid,phone FROM users WHERE uid=?', (int(player_id),)).fetchone()
+    if not row:
+      raise HTTPException(404, 'ይህ Player ID አልተገኘም!')
+    uid = int(row['uid'])
+    if action == 'add':
+      c.execute('UPDATE users SET play_wallet=play_wallet+? WHERE uid=?', (amount, uid))
+      add_tx(c, uid, '🎁', 'አድሚን ጨምሯል', amount)
+    else:
+      c.execute('UPDATE users SET play_wallet=GREATEST(0,play_wallet-?) WHERE uid=?', (amount, uid))
+      add_tx(c, uid, '➖', 'አድሚን ቀንሷል', -amount)
+    updated = c.execute('SELECT play_wallet,win_wallet FROM users WHERE uid=?', (uid,)).fetchone()
+  return {'ok': True, 'uid': uid, 'phone': str(row['phone'] or ''), 'wallet': round(float(updated['play_wallet'] or 0) + float(updated['win_wallet'] or 0), 2)}
+
+@app.post('/api/admin/settings/min-players')
+async def api_admin_min_players(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  body = await req.json()
+  try:
+    value = int(body.get('value', MIN_PLAYERS)) if isinstance(body, dict) else MIN_PLAYERS
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'ትክክለኛ ቁጥር ያስገቡ!')
+  if value < 1 or value > 400:
+    raise HTTPException(400, 'ዝቅተኛ ተጫዋች ከ1 እስከ 400 መሆን አለበት!')
+  return {'ok': True, 'min_players': set_min_players(value)}
+
+@app.post('/api/admin/finance/switch')
+async def api_admin_finance_switch(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  try:
+    return {'ok': True, 'finance_rotation': switch_finance_turn()}
+  except ValueError as exc:
+    raise HTTPException(409, str(exc))
+
+@app.post('/api/admin/broadcast')
+async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  if not bot:
+    raise HTTPException(503, 'Telegram Bot አልተገናኘም!')
+  b = await req.json()
+  raw_message = b.get('message') if isinstance(b, dict) else None
+  message = raw_message.strip() if isinstance(raw_message, str) else ''
+  image_data = b.get('image') if isinstance(b, dict) else None
+  image_bytes, image_name = None, 'announcement.jpg'
+  if not message or message.lower() == 'none' or len(message) > 4000:
+    raise HTTPException(400, 'መልእክቱ ባዶ ነው፤ ከ1 እስከ 4000 ቁምፊ ይጻፉ!')
+  if image_data:
+    if not isinstance(image_data, str) or ',' not in image_data:
+      raise HTTPException(400, 'የምስሉ ፋይል ትክክል አይደለም!')
+    image_header, encoded = image_data.split(',', 1)
+    if 'image/jpeg' in image_header:
+      image_name = 'announcement.jpg'
+    elif 'image/png' in image_header:
+      image_name = 'announcement.png'
+    elif 'image/webp' in image_header:
+      image_name = 'announcement.webp'
+    else:
+      raise HTTPException(400, 'JPG, PNG ወይም WEBP ምስል ብቻ ይጠቀሙ!')
+    try:
+      image_bytes = base64.b64decode(encoded, validate=True)
+    except Exception:
+      raise HTTPException(400, 'የምስሉ ፋይል ማንበብ አልተቻለም!')
+    if not image_bytes or len(image_bytes) > 8 * 1024 * 1024:
+      raise HTTPException(413, 'ምስሉ ከ8MB በታች መሆን አለበት!')
+    if len(message) > 900:
+      raise HTTPException(400, 'ምስል ሲያያዝ መልእክቱ ከ900 ቁምፊ መብለጥ የለበትም!')
+  with get_db() as c:
+    uids = [row[0] for row in c.execute('SELECT uid FROM users ORDER BY created_at').fetchall()]
+  keyboard = IKB()
+  keyboard.add(IBtn('🎮 Play Now', web_app=WebAppInfo(url=APP_URL)))
+  sent, failed = 0, 0
+  for uid in uids:
+    try:
+      if image_bytes:
+        photo = io.BytesIO(image_bytes)
+        photo.name = image_name
+        try:
+          bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\n\n{message}')
+          time.sleep(0.15)
+          bot.send_message(uid, '👇 ጨዋታውን ለመክፈት ከታች ይጫኑ፦', reply_markup=keyboard)
+        except Exception as photo_exc:
+          print(f'Photo broadcast failed for {uid}: {type(photo_exc).__name__}: {photo_exc}')
+          # Always deliver the text announcement with the Play Now button
+          # even when Telegram cannot accept the attached image.
+          bot.send_message(uid, f'📢 ማስታወቂያ\n\n{message}', reply_markup=keyboard)
+      else:
+        bot.send_message(uid, f'📢 ማስታወቂያ\n\n{message}', reply_markup=keyboard)
+      sent += 1
+      time.sleep(0.05)
+    except Exception as exc:
+      failed += 1
+      print(f'Broadcast failed for {uid}: {type(exc).__name__}: {exc}')
+  return {'ok': True, 'sent': sent, 'failed': failed, 'total': len(uids)}
+
+@app.post('/api/withdraw')
+async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  ensure_finance_service_open(u['uid'])
+  b = await req.json()
+  try: amt = float(b.get('amount', 0))
+  except (TypeError, ValueError): raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
+  raw_phone = str(b.get('phone', '')).strip()
+  # Accept Ethiopian mobile numbers in local (09XXXXXXXX) or international
+  # (+2519XXXXXXXX / 2519XXXXXXXX) format; store a consistent local number.
+  phone_digits = ''.join(ch for ch in raw_phone if ch.isdigit())
+  if phone_digits.startswith('251') and len(phone_digits) == 12:
+    ph = '0' + phone_digits[3:]
+  elif len(phone_digits) == 10 and phone_digits.startswith('09'):
+    ph = phone_digits
+  else:
+    ph = ''
+  method = str(b.get('method', 'TeleBirr')).strip()
+  if method not in ('TeleBirr', 'CBE Birr', 'CbeBirr'):
+    raise HTTPException(400, 'TeleBirr ወይም CbeBirr ይምረጡ!')
+  if not math.isfinite(amt) or amt < 100 or amt > 1000000 or not ph:
+    raise HTTPException(400, 'ዝቅተኛ 100 ETB እና ትክክለኛ 09XXXXXXXX ስልክ ቁጥር ያስገቡ!')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    if available_wallet(c, u['uid']) < amt: raise HTTPException(400, 'በቂ ያልሆነ ባላንስ አለዎት!')
+    rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at) VALUES (?,?,?,?,?,?,?)',
+                    ('withdraw', u['uid'], amt, method, f'PENDING RESERVED | App Account: {ph}', 'pending', int(time.time()))).lastrowid
+  try:
+    # Send the request only to the admin whose finance turn is currently active.
+    aids = finance_admin_ids()
+    if bot and aids:
+      kb = IKB()
+      kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
+      player_phone = u.get('phone') or 'Not registered'
+      msg = f'🔔 አዲስ የወጪ ጥያቄ!\\n\\n🆔 Request #{rid}\\n👤 {u["name"]}\\n🆔 Player ID: {player_phone}\\n💵 {amt:.2f} ETB\\n🏦 የወጪ ዘዴ: {payment_method_label(method)}\\n📱 የተቀባይ ቁጥር: {ph}\\n⏳ ሁኔታ: PENDING'
+      for aid in aids:
+        try:
+          bot.send_message(aid, msg, reply_markup=kb)
+        except Exception:
+          pass
+  except Exception:
+    pass
+  return {'ok': True}
+ + digest.hex()
+  with get_db() as c:
+    row = c.execute('SELECT apk_password_hash, phone FROM users WHERE uid=?', (u['uid'],)).fetchone()
+    if not row or not row['phone']:
+      raise HTTPException(403, 'መጀመሪያ በTelegram Bot ውስጥ የራስዎን ስልክ ቁጥር ያረጋግጡ።')
+    if row['apk_password_hash']:
+      raise HTTPException(409, 'Password አስቀድሞ ተዘጋጅቷል።')
+    c.execute('UPDATE users SET apk_password_hash=? WHERE uid=? AND apk_password_hash IS NULL', (encoded, u['uid']))
+  return {'ok': True, 'message': 'የAPK Password ተዘጋጅቷል።'}
+
+@app.post('/api/apk/login')
+async def api_apk_login(req: Request):
+  body = await req.json()
+  phone = normalize_phone(body.get('phone')) if isinstance(body, dict) else ''
+  password = str(body.get('password', '')) if isinstance(body, dict) else ''
+  if not phone or len(re.sub(r'\\D', '', phone)) != 12 or not password or len(password) > 128:
+    raise HTTPException(400, 'ስልክ ቁጥርና Password በትክክል ያስገቡ።')
+  ip = (req.client.host if req.client else 'unknown')[:64]
+  now = int(time.time())
+  with get_db() as c:
+    attempts = c.execute('SELECT COUNT(*) AS n FROM apk_login_attempts WHERE phone=? AND ip=? AND created_at>?', (phone, ip, now-900)).fetchone()
+    if int(attempts['n'] or 0) >= 8:
+      raise HTTPException(429, 'ብዙ ጊዜ ሞክረዋል። ከ15 ደቂቃ በኋላ ይሞክሩ።')
+    user = c.execute('SELECT * FROM users WHERE phone=?', (phone,)).fetchone()
+    stored = user['apk_password_hash'] if user else None
+    valid = False
+    if stored:
+      try:
+        algorithm, rounds, salt_hex, hash_hex = stored.split('(stake: int = 10, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if stake not in rooms: raise HTTPException(400, 'ልክ ያልሆነ የጨዋታ ክፍል!')
+  r = rooms[stake]
+  admin_view = is_adm(u['uid'])
+  with room_lock:
+    my_c = sorted([k for k, v in r['cards'].items() if v['uid'] == u['uid']])
+    tk_c = sorted([k for k, v in r['cards'].items() if v['uid'] != u['uid']])
+    snap = {'stake': r['stake'], 'phase': r['phase'], 'countdown': r['countdown'], 'players': n_players(r),
+            'min_players': min_players_for(stake), 'total_cards': len(r['cards']), 'derash': derash(r),
+            'taken_cards': tk_c, 'my_cards': my_c, 'my_boards': {str(n): r['cards'][n]['grid'] for n in my_c},
+            'called': r['called'], 'winner': r['winner'], 'winner_left': max(0, int(r['win_until'] - time.time())) if r['phase'] == 'WINNER' else 0}
+    admin_rooms = {}
+    if admin_view:
+      for room_stake, room in rooms.items():
+        admin_rooms[str(room_stake)] = {'stake': room_stake, 'phase': room['phase'], 'players': n_players(room), 'derash': derash(room), 'called': list(room['called']), 'upcoming': list(reversed(room['deck'])) if room['phase'] == 'PLAYING' else [], 'remaining': len(room['deck']), 'total_cards': len(room['cards'])}
+  with get_db() as c:
+    txs = [dict(x) for x in c.execute('SELECT icon,title,amount,created_at, NULL AS status FROM transactions WHERE uid=? ORDER BY id DESC LIMIT 25', (u['uid'],)).fetchall()]
+    pending = [dict(x) for x in c.execute("SELECT '⏳' AS icon, 'የወጪ ጥያቄ ('||method||') - PENDING' AS title, -amount AS amount, created_at, status FROM requests WHERE uid=? AND req_type='withdraw' AND status='pending' AND details LIKE 'PENDING RESERVED |%' ORDER BY id DESC LIMIT 25", (u['uid'],)).fetchall()]
+    txs = sorted(txs + pending, key=lambda x: x['created_at'], reverse=True)[:25]
+    top = [dict(x) for x in c.execute('SELECT name,total_won FROM users WHERE total_won>0 ORDER BY total_won DESC LIMIT 10').fetchall()]
+  return {'games_paused': GAME_PAUSED, 'admin_rooms': admin_rooms if admin_view else None, 'finance_service': finance_service_status(), 'user': {'player_id': u['phone'], 'name': u['name'], 'balance': round(u['play_wallet'] + u['win_wallet'],2), 'play_wallet': round(u['play_wallet'] + u['win_wallet'],2), 'win_wallet': 0.0, 'matches_played': u['matches_played'], 'wins': u['wins']}, 'is_admin': admin_view,
+          'finance_rotation': finance_rotation_status() if admin_view else None,
+          'config': {**active_payment_accounts(), 'support': SUPPORT}, 'room': snap, 'history': txs, 'rank': top}
+
+@app.post('/api/buy_card')
+async def api_buy(req: Request, x_tg_init_data: str = Header(default='')):
+  u, b = auth_user(x_tg_init_data), await req.json()
+  try: st, cno = int(b.get('stake', 10)), int(b.get('card_no', 0))
+  except (TypeError, ValueError): raise HTTPException(400, 'ልክ ያልሆነ ካርድ!')
+  if st not in rooms or not (1 <= cno <= 400): raise HTTPException(400, 'ልክ ያልሆነ ካርድ!')
+  with room_lock:
+    r = rooms[st]
+    if r['phase'] not in ('WAITING', 'COUNTDOWN'): raise HTTPException(400, 'ጨዋታው ተጀምሯል!')
+    if cno in r['cards']:
+      if r['cards'][cno]['uid'] == u['uid']:
+        with get_db() as c:
+          c.execute('BEGIN IMMEDIATE')
+          c.execute('UPDATE users SET play_wallet=play_wallet+? WHERE uid=?', (st, u['uid']))
+          add_tx(c, u['uid'], '↩️', f'ካርድ #{cno} ተሰርዟል', st)
+          del r['cards'][cno]
+          save_room(r, c)
+        return {'ok': True, 'action': 'removed'}
+      raise HTTPException(400, f'ካርድ #{cno} ተይዟል!')
+    if sum(1 for v in r['cards'].values() if v['uid'] == u['uid']) >= 4: raise HTTPException(400, 'እስከ 4 ካርድ ብቻ!')
+    with get_db() as c:
+      c.execute('BEGIN IMMEDIATE')
+      wallet = c.execute('SELECT play_wallet FROM users WHERE uid=?', (u['uid'],)).fetchone()
+      if not wallet or available_wallet(c, u['uid']) < st: raise HTTPException(400, 'በቂ Play Wallet የለዎትም! ገቢ ያድርጉ።')
+      c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=?', (st, u['uid'])); add_tx(c, u['uid'], '🎴', f'ካርድ #{cno} ({st} ብር)', -st)
+      r['cards'][cno] = {'uid': u['uid'], 'name': u['name'], 'grid': gen_card(cno)}
+      save_room(r, c)
+    return {'ok': True, 'action': 'bought'}
+
+@app.post('/api/claim_bingo')
+async def api_claim(req: Request, x_tg_init_data: str = Header(default='')):
+  u, b = auth_user(x_tg_init_data), await req.json()
+  try: st, cno = int(b.get('stake', 10)), int(b.get('card_no', 0))
+  except (TypeError, ValueError): raise HTTPException(400, 'ልክ ያልሆነ ክፍል/ካርድ!')
+  if st not in rooms or not (1 <= cno <= 400): raise HTTPException(400, 'ልክ ያልሆነ ክፍል/ካርድ!')
+  with room_lock:
+    r = rooms[st]
+    if r['phase'] != 'PLAYING': raise HTTPException(400, 'ጨዋታው አልተጀመረም!')
+    own = r['cards'].get(cno)
+    if not own or own['uid'] != u['uid']: raise HTTPException(403, 'ይህ ካርድ የእርስዎ አይደለም!')
+    wl = check_win(own['grid'], set(r['called']))
+    if not wl: raise HTTPException(400, 'ገና BINGO አልተሟላም!')
+    finish_round(r, u['uid'], u['name'], cno, wl)
+    return {'ok': True, 'prize': r['winner']['prize']}
+
+@app.post('/api/transfer')
+async def api_transfer(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  body = await req.json()
+  phone = normalize_phone(body.get('phone'))
+  try:
+    amt = round(float(body.get('amount', 0)), 2)
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'የሚላከው ብር መጠን ትክክል አይደለም።')
+  if not phone or len(re.sub(r'\D', '', phone)) != 12:
+    raise HTTPException(400, 'የተቀባዩን የተመዘገበ ስልክ ቁጥር በትክክል ያስገቡ።')
+  if not math.isfinite(amt) or amt < 1 or amt > 100000:
+    raise HTTPException(400, 'ዝቅተኛው 1 ETB ነው፤ የብር መጠኑን ያረጋግጡ።')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    c.execute('SELECT uid FROM users WHERE uid=? FOR UPDATE', (u['uid'],))
+    matches = c.execute('SELECT uid, name FROM users WHERE phone=?', (phone,)).fetchall()
+    if not matches:
+      raise HTTPException(404, 'ይህ ስልክ ቁጥር በRoyal Bingo አልተመዘገበም።')
+    if len(matches) != 1:
+      raise HTTPException(409, 'ይህ ስልክ ቁጥር ከአንድ ተጫዋች ጋር ተያይዟል፤ ድጋፍን ያነጋግሩ።')
+    receiver = matches[0]
+    if int(receiver['uid']) == int(u['uid']):
+      raise HTTPException(400, 'ገንዘብን ወደ ራስዎ መላክ አይችሉም።')
+    available = available_wallet(c, u['uid'])
+    if available < amt:
+      raise HTTPException(400, f'በቂ ባላንስ የለዎትም። የሚገኘው {available:.2f} ETB ነው።')
+    c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)-? WHERE uid=?', (amt, u['uid']))
+    c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+? WHERE uid=?', (amt, receiver['uid']))
+    add_tx(c, u['uid'], '↗️', f'ለ {receiver["name"]} የተላከ ብር', -amt)
+    add_tx(c, receiver['uid'], '↙️', f'ከ {u["name"]} የተቀበለ ብር', amt)
+  return {'ok': True, 'amount': amt, 'recipient': receiver['name']}
+
+@app.post('/api/deposit')
+async def api_dep(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  ensure_finance_service_open(u['uid'])
+  b = await req.json()
+  method = str(b.get('method', 'TeleBirr')).strip()
+  if method not in ('TeleBirr', 'CBE Birr', 'CbeBirr'):
+    raise HTTPException(400, 'TeleBirr ወይም CbeBirr ይምረጡ!')
+  sms = str(b.get('sms', '')).strip()
+  parsed = parse_payment_sms(sms, method)
+  if not parsed:
+    raise HTTPException(400, 'ሙሉ የTeleBirr/CBE የክፍያ SMS ይላኩ። Amount እና Transaction ID በSMS ውስጥ መኖር አለባቸው!')
+  amt, tx = parsed
+  if not math.isfinite(amt) or amt < 20 or amt > 1000000:
+    raise HTTPException(400, 'በSMS ውስጥ ያለው መጠን 20 ETB እስከ 1,000,000 ETB መሆን አለበት!')
+  try: rid = notify_req('deposit', u['uid'], amt, method, f'Full payment SMS:\\n{sms[:2500]}', reference=tx)
+  except sqlite3.IntegrityError: raise HTTPException(409, 'ይህ Transaction ID ቀድሞ ተጠቅሟል!')
+  # The bank notification may arrive before the player submits the SMS. Match any
+  # previously captured, still-unmatched device event as soon as the request exists.
+  with get_db() as c:
+    event = c.execute("SELECT provider,amount,transaction_id FROM payment_sms_events WHERE lower(transaction_id)=lower(?) AND matched_request_id IS NULL ORDER BY id DESC LIMIT 1", (tx,)).fetchone()
+    if event:
+      expected_provider = 'CBE Birr' if payment_method_label(method) == 'CbeBirr' else 'TeleBirr'
+      valid = abs(float(event['amount'] or 0)-amt) <= 0.01 and event['provider'] == expected_provider
+      if valid:
+        c.execute("UPDATE payment_sms_events SET matched_request_id=?,match_status='matched' WHERE lower(transaction_id)=lower(?) AND matched_request_id IS NULL", (rid,tx))
+        c.execute("UPDATE requests SET details=details || ? WHERE id=?", (f' | APK VERIFIED: {event["provider"]}, {amt:.2f} ETB, TX {tx}',rid))
+      else:
+        c.execute("UPDATE payment_sms_events SET matched_request_id=?,match_status='details_mismatch' WHERE lower(transaction_id)=lower(?) AND matched_request_id IS NULL", (rid,tx))
+  if event and bot:
+    try:
+      player = ensure_user(u['uid'])
+      kb = IKB()
+      if valid:
+        kb.row(IBtn('✅ APK አረጋግጧል — ፍቀድ', callback_data=f'ap_dep_{rid}'),
+               IBtn('❌ ውድቅ አድርግ', callback_data=f'rj_dep_{rid}'))
+        message = f'🟢 APK የክፍያውን መረጃ አረጋግጧል\\nRequest #{rid}\\n👤 {player["name"]}\\n💵 {amt:.2f} ETB\\n🏦 {expected_provider}\\n🧾 TX: {tx}'
+      else:
+        kb.row(IBtn('❌ ውድቅ አድርግ', callback_data=f'rj_dep_{rid}'))
+        message = f'🔴 የክፍያ መረጃ አልተዛመደም — Approve አይፈቀድም!\\nRequest #{rid}\\n👤 {player["name"]}\\nSMS: {amt:.2f} ETB / {payment_method_label(method)}\\nAPK: {float(event["amount"]):.2f} ETB / {event["provider"]}\\nTX: {tx}'
+      for aid in finance_admin_ids():
+        try: bot.send_message(aid,message,reply_markup=kb)
+        except Exception: pass
+    except Exception as exc:
+      print('Pre-captured payment event review notification failed:',type(exc).__name__,str(exc))
+  return {'ok': True, 'amount': amt, 'transaction_id': tx}
+
+
+# Admin pairs the Android companion app using a short-lived one-time code.
+@app.post('/api/admin/payment-device/pair-code')
+def api_payment_device_pair_code(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  code = ''.join(secrets.choice('23456789ABCDEFGHJKLMNPQRSTUVWXYZ') for _ in range(8))
+  digest = hashlib.sha256(code.encode()).hexdigest()
+  now = int(time.time())
+  with get_db() as c:
+    c.execute('UPDATE payment_pairing_codes SET used_at=? WHERE created_by=? AND used_at IS NULL', (now, u['uid']))
+    c.execute('INSERT INTO payment_pairing_codes(code_hash,created_by,expires_at,used_at) VALUES(?,?,?,NULL)', (digest, u['uid'], now + 300))
+  return {'ok': True, 'pairing_code': code, 'expires_in_seconds': 300}
+
+@app.post('/api/payment-device/enroll')
+async def api_payment_device_enroll(req: Request):
+  body = await req.json()
+  code = str(body.get('pairing_code', '')).strip().upper() if isinstance(body, dict) else ''
+  label = str(body.get('label', 'Royal Bingo Admin Phone')).strip()[:80]
+  if len(code) != 8:
+    raise HTTPException(400, 'የPairing Code ትክክል አይደለም!')
+  now = int(time.time())
+  digest = hashlib.sha256(code.encode()).hexdigest()
+  token = secrets.token_urlsafe(40)
+  with get_db() as c:
+    row = c.execute('SELECT code_hash,created_by,expires_at,used_at FROM payment_pairing_codes WHERE code_hash=?', (digest,)).fetchone()
+    if not row or row['used_at'] is not None or int(row['expires_at']) < now:
+      raise HTTPException(400, 'Pairing Code ጊዜው አልፏል ወይም ተጠቅሟል። አዲስ Code ይፍጠሩ።')
+    c.execute('UPDATE payment_pairing_codes SET used_at=? WHERE code_hash=? AND used_at IS NULL', (now, digest))
+    c.execute('INSERT INTO payment_devices(token_hash,label,active,created_at) VALUES(?,?,1,?)', (hashlib.sha256(token.encode()).hexdigest(), label or 'Royal Bingo Admin Phone', now))
+  return {'ok': True, 'device_token': token, 'message': 'Token አንድ ጊዜ ብቻ ይታያል፤ በስልኩ ውስጥ በደህና ያስቀምጡት።'}
+
+@app.post('/api/payment-device/notification')
+async def api_payment_device_notification(req: Request, authorization: str = Header(default='')):
+  if not authorization.startswith('Bearer '):
+    raise HTTPException(401, 'Device authentication required')
+  token = authorization[7:].strip()
+  if len(token) < 40:
+    raise HTTPException(401, 'Invalid device token')
+  token_hash = hashlib.sha256(token.encode()).hexdigest()
+  body = await req.json()
+  if not isinstance(body, dict):
+    raise HTTPException(400, 'Invalid notification data')
+  provider = str(body.get('provider', '')).strip()
+  txid = str(body.get('transaction_id', '')).strip()
+  try:
+    amount = float(body.get('amount'))
+    received_at = int(body.get('received_at') or time.time())
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'Amount or timestamp is invalid')
+  if provider not in ('TeleBirr', 'CBE Birr') or not math.isfinite(amount) or amount <= 0 or amount > 10000000 or len(txid) < 4 or len(txid) > 120:
+    raise HTTPException(400, 'Provider, amount or transaction ID is invalid')
+  now = int(time.time())
+  with get_db() as c:
+    device = c.execute('SELECT id FROM payment_devices WHERE token_hash=? AND active=1', (token_hash,)).fetchone()
+    if not device:
+      raise HTTPException(401, 'Device is not paired or has been revoked')
+    c.execute('UPDATE payment_devices SET last_seen=? WHERE id=?', (now, device['id']))
+    try:
+      c.execute('INSERT INTO payment_sms_events(provider,transaction_id,amount,received_at,matched_request_id,match_status,created_at) VALUES(?,?,?,?,NULL,?,?)',
+                (provider, txid, amount, received_at, 'unmatched', now))
+    except sqlite3.IntegrityError:
+      return {'ok': True, 'duplicate': True, 'match_status': 'duplicate'}
+    reqrow = c.execute("SELECT id,uid,amount,method FROM requests WHERE req_type='deposit' AND status='pending' AND lower(reference)=lower(?) ORDER BY id DESC LIMIT 1", (txid,)).fetchone()
+    if not reqrow:
+      return {'ok': True, 'matched': False, 'match_status': 'no_pending_transaction'}
+    expected_method = 'CBE Birr' if payment_method_label(reqrow['method']) == 'CbeBirr' else 'TeleBirr'
+    if abs(float(reqrow['amount'] or 0) - amount) > 0.01 or expected_method != provider:
+      c.execute("UPDATE payment_sms_events SET match_status='details_mismatch' WHERE transaction_id=?", (txid,))
+      return {'ok': True, 'matched': False, 'match_status': 'details_mismatch'}
+    c.execute("UPDATE payment_sms_events SET matched_request_id=?,match_status='matched' WHERE transaction_id=?", (reqrow['id'], txid))
+    c.execute("UPDATE requests SET details=details || ? WHERE id=?", (f' | SMS VERIFIED: {provider}, {amount:.2f} ETB, TX {txid}', reqrow['id']))
+  # Notify admins outside the database transaction. Existing approve callback remains the only way to credit wallet.
+  try:
+    if bot:
+      u = ensure_user(reqrow['uid'])
+      kb = IKB(); kb.row(IBtn('✅ ክፍያውን አረጋግጥ / ፍቀድ', callback_data=f'ap_dep_{reqrow["id"]}'),
+                         IBtn('❌ ውድቅ አድርግ', callback_data=f'rj_dep_{reqrow["id"]}'))
+      msg = f'🟢 SMS ከስልክ ተዛምዷል\n\nRequest #{reqrow["id"]}\n👤 {u["name"]}\n💵 {amount:.2f} ETB\n🏦 {provider}\n🧾 TX: {txid}\n\nWallet የሚጨመረው ከአድሚን ፈቃድ በኋላ ብቻ ነው።'
+      for aid in finance_admin_ids():
+        try: bot.send_message(aid, msg, reply_markup=kb)
+        except Exception: pass
+  except Exception as exc:
+    print('Payment SMS admin notification failed:', type(exc).__name__, str(exc))
+  return {'ok': True, 'matched': True, 'match_status': 'matched', 'request_id': int(reqrow['id'])}
+
+
+@app.get('/api/admin/deposits')
+def api_admin_deposits(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  with get_db() as c:
+    rows = c.execute("""
+      SELECT r.id,r.uid,r.amount,r.method,r.details,r.status,r.created_at,r.reference,
+             u.name,u.phone,
+             EXISTS(SELECT 1 FROM payment_sms_events e
+                    WHERE e.matched_request_id=r.id AND e.match_status='matched') AS device_verified
+      FROM requests r JOIN users u ON u.uid=r.uid
+      WHERE r.req_type='deposit' AND r.status='pending'
+      ORDER BY r.created_at DESC LIMIT 100
+    """).fetchall()
+  return {'requests': [
+    {'id':int(x['id']),'uid':int(x['uid']),'name':str(x['name'] or 'Player'),
+     'phone':str(x['phone'] or ''),'amount':round(float(x['amount'] or 0),2),
+     'method':payment_method_label(x['method']),'details':str(x['details'] or ''),
+     'reference':str(x['reference'] or ''),'created_at':int(x['created_at'] or 0),
+     'device_verified':bool(x['device_verified'])}
+    for x in rows
+  ]}
+
+@app.post('/api/admin/deposits/{request_id}/decision')
+async def api_admin_deposit_decision(request_id: int, req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  if not is_finance_admin(u['uid']):
+    raise HTTPException(403, '⏳ የገቢ ማጽደቅ ተራው አሁን የሌላ አድሚን ነው።')
+  body = await req.json()
+  action = str(body.get('action','')).strip().lower() if isinstance(body,dict) else ''
+  if action not in ('approve','reject'):
+    raise HTTPException(400, 'approve ወይም reject ይምረጡ።')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    rq = c.execute("SELECT * FROM requests WHERE id=? AND req_type='deposit'", (request_id,)).fetchone()
+    if not rq:
+      raise HTTPException(404, 'የገቢ ጥያቄው አልተገኘም።')
+    if rq['status'] != 'pending':
+      raise HTTPException(409, 'ይህ ጥያቄ ቀድሞ ተወስኗል።')
+    uid, amt = int(rq['uid']), float(rq['amount'] or 0)
+    if action == 'approve':
+      verified = c.execute("SELECT id FROM payment_sms_events WHERE matched_request_id=? AND match_status='matched' LIMIT 1", (request_id,)).fetchone()
+      if not verified:
+        raise HTTPException(409, 'APK የክፍያውን Transaction ID፣ Amount እና Provider አላረጋገጠም። Approve ማድረግ አይቻልም።')
+      c.execute("UPDATE requests SET status='approved' WHERE id=? AND status='pending'", (request_id,))
+      c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+? WHERE uid=?', (amt,uid))
+      add_tx(c,uid,'💰',f'ገቢ ጸድቋል ({payment_method_label(rq["method"])})',amt)
+      referrer=c.execute('SELECT referred_by FROM users WHERE uid=?',(uid,)).fetchone()
+      if referrer and referrer['referred_by']:
+        c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+15 WHERE uid=?',(referrer['referred_by'],))
+        c.execute('UPDATE users SET referred_by=NULL WHERE uid=?',(uid,))
+        add_tx(c,referrer['referred_by'],'🎁','የግብዣ ሽልማት',15.0)
+    else:
+      c.execute("UPDATE requests SET status='rejected' WHERE id=? AND status='pending'", (request_id,))
+  try:
+    if bot:
+      note = (f'🎉 የ {amt:.2f} ETB ገቢዎ በአድሚን ጸድቋል። Wallet ተጨምሯል!' if action=='approve'
+              else f'❌ የ {amt:.2f} ETB የገቢ ጥያቄዎ በአድሚን ውድቅ ተደርጓል። እባክዎ የክፍያ መረጃውን ያረጋግጡ።')
+      bot.send_message(uid,note)
+  except Exception as exc:
+    print('Deposit decision player notification failed:',type(exc).__name__,str(exc))
+  return {'ok':True,'status':'approved' if action=='approve' else 'rejected','amount':amt,'uid':uid}
+
+@app.get('/api/admin/profit')
+def api_admin_profit(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  with get_db() as c:
+    house = c.execute('SELECT total_commission,total_rounds FROM house_stats WHERE id=1').fetchone() or {'total_commission': 0, 'total_rounds': 0}
+    payouts = c.execute('SELECT COALESCE(SUM(prize),0) AS total FROM game_payouts').fetchone()
+    recent = c.execute("SELECT COALESCE(SUM(gross),0) AS gross, COALESCE(SUM(prize),0) AS prize, COALESCE(SUM(commission),0) AS profit, COUNT(*) AS rounds FROM house_profit_events WHERE created_at >= ?", (int(time.time())-30*86400,)).fetchone()
+    by_stake = c.execute("SELECT stake, COALESCE(SUM(gross),0) AS gross, COALESCE(SUM(prize),0) AS prize, COALESCE(SUM(commission),0) AS profit, COUNT(*) AS rounds FROM house_profit_events GROUP BY stake ORDER BY stake").fetchall()
+  return {'lifetime_profit': round(float(house['total_commission'] or 0),2), 'lifetime_rounds': int(house['total_rounds'] or 0), 'lifetime_payouts': round(float(payouts['total'] or 0),2), 'recent_30d': dict(recent), 'by_stake': [dict(x) for x in by_stake], 'detail_tracking_since': 'feature_launch'}
+
+@app.post('/api/admin/games/control')
+async def api_admin_games_control(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  body = await req.json()
+  action = body.get('action') if isinstance(body, dict) else None
+  if action not in ('pause', 'resume'):
+    raise HTTPException(400, 'pause ወይም resume ብቻ ይፈቀዳል!')
+  paused = set_games_paused(action == 'pause')
+  return {'ok': True, 'games_paused': paused}
+
+
+
+@app.get('/api/admin/backup')
+def api_admin_backup(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  stamp = time.strftime('%Y%m%d_%H%M%S', time.gmtime())
+  archive = io.BytesIO()
+  try:
+    with get_db() as c:
+      c.execute('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY')
+      tables = c.execute("""
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema='public' AND table_type='BASE TABLE'
+        ORDER BY table_name
+      """).fetchall()
+      with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+        manifest = {'database': 'Royal Bingo PostgreSQL', 'created_at_utc': stamp, 'format': 'JSON per table'}
+        zf.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
+        for item in tables:
+          table = str(item['table_name'])
+          safe_table = table.replace('"', '""')
+          rows = c.execute('SELECT * FROM "' + safe_table + '"').fetchall()
+          payload = json.dumps([dict(row) for row in rows], ensure_ascii=False, default=str, indent=2)
+          zf.writestr('tables/' + table + '.json', payload)
+  except Exception as exc:
+    print('Admin database backup failed:', type(exc).__name__, str(exc))
+    raise HTTPException(500, 'DB Backup ማዘጋጀት አልተቻለም። እባክዎ እንደገና ይሞክሩ።')
+  return Response(
+    content=archive.getvalue(),
+    media_type='application/zip',
+    headers={'Content-Disposition': f'attachment; filename="royal_bingo_backup_{stamp}.zip"'}
+  )
+
+
+@app.get('/api/admin/users')
+def api_admin_users(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  with get_db() as c:
+    rows = c.execute('SELECT uid,name,phone,play_wallet,win_wallet,matches_played,wins,created_at FROM users ORDER BY created_at DESC LIMIT 100').fetchall()
+  return {'users': [
+    {'uid': int(r['uid']), 'name': str(r['name'] or 'Player'), 'phone': str(r['phone'] or ''),
+     'wallet': round(float(r['play_wallet'] or 0) + float(r['win_wallet'] or 0), 2),
+     'matches_played': int(r['matches_played'] or 0), 'wins': int(r['wins'] or 0)}
+    for r in rows
+  ]}
+
+@app.post('/api/admin/wallet/adjust')
+async def api_admin_wallet_adjust(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  body = await req.json()
+  player_id = str(body.get('player_id', '')).strip() if isinstance(body, dict) else ''
+  action = body.get('action') if isinstance(body, dict) else None
+  try:
+    amount = float(body.get('amount', 0))
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
+  if not player_id or len(player_id) > 32 or action not in ('add', 'subtract') or not math.isfinite(amount) or amount <= 0 or amount > 1000000:
+    raise HTTPException(400, 'Player ID እና ከ0 በላይ ትክክለኛ መጠን ያስገቡ!')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    row = c.execute('SELECT uid,phone FROM users WHERE phone=?', (player_id,)).fetchone()
+    if not row and player_id.isdigit():
+      row = c.execute('SELECT uid,phone FROM users WHERE uid=?', (int(player_id),)).fetchone()
+    if not row:
+      raise HTTPException(404, 'ይህ Player ID አልተገኘም!')
+    uid = int(row['uid'])
+    if action == 'add':
+      c.execute('UPDATE users SET play_wallet=play_wallet+? WHERE uid=?', (amount, uid))
+      add_tx(c, uid, '🎁', 'አድሚን ጨምሯል', amount)
+    else:
+      c.execute('UPDATE users SET play_wallet=GREATEST(0,play_wallet-?) WHERE uid=?', (amount, uid))
+      add_tx(c, uid, '➖', 'አድሚን ቀንሷል', -amount)
+    updated = c.execute('SELECT play_wallet,win_wallet FROM users WHERE uid=?', (uid,)).fetchone()
+  return {'ok': True, 'uid': uid, 'phone': str(row['phone'] or ''), 'wallet': round(float(updated['play_wallet'] or 0) + float(updated['win_wallet'] or 0), 2)}
+
+@app.post('/api/admin/settings/min-players')
+async def api_admin_min_players(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  body = await req.json()
+  try:
+    value = int(body.get('value', MIN_PLAYERS)) if isinstance(body, dict) else MIN_PLAYERS
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'ትክክለኛ ቁጥር ያስገቡ!')
+  if value < 1 or value > 400:
+    raise HTTPException(400, 'ዝቅተኛ ተጫዋች ከ1 እስከ 400 መሆን አለበት!')
+  return {'ok': True, 'min_players': set_min_players(value)}
+
+@app.post('/api/admin/finance/switch')
+async def api_admin_finance_switch(x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  try:
+    return {'ok': True, 'finance_rotation': switch_finance_turn()}
+  except ValueError as exc:
+    raise HTTPException(409, str(exc))
+
+@app.post('/api/admin/broadcast')
+async def api_admin_broadcast(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  if not is_adm(u['uid']):
+    raise HTTPException(403, 'ይህ ክፍል ለአድሚን ብቻ ነው!')
+  if not bot:
+    raise HTTPException(503, 'Telegram Bot አልተገናኘም!')
+  b = await req.json()
+  raw_message = b.get('message') if isinstance(b, dict) else None
+  message = raw_message.strip() if isinstance(raw_message, str) else ''
+  image_data = b.get('image') if isinstance(b, dict) else None
+  image_bytes, image_name = None, 'announcement.jpg'
+  if not message or message.lower() == 'none' or len(message) > 4000:
+    raise HTTPException(400, 'መልእክቱ ባዶ ነው፤ ከ1 እስከ 4000 ቁምፊ ይጻፉ!')
+  if image_data:
+    if not isinstance(image_data, str) or ',' not in image_data:
+      raise HTTPException(400, 'የምስሉ ፋይል ትክክል አይደለም!')
+    image_header, encoded = image_data.split(',', 1)
+    if 'image/jpeg' in image_header:
+      image_name = 'announcement.jpg'
+    elif 'image/png' in image_header:
+      image_name = 'announcement.png'
+    elif 'image/webp' in image_header:
+      image_name = 'announcement.webp'
+    else:
+      raise HTTPException(400, 'JPG, PNG ወይም WEBP ምስል ብቻ ይጠቀሙ!')
+    try:
+      image_bytes = base64.b64decode(encoded, validate=True)
+    except Exception:
+      raise HTTPException(400, 'የምስሉ ፋይል ማንበብ አልተቻለም!')
+    if not image_bytes or len(image_bytes) > 8 * 1024 * 1024:
+      raise HTTPException(413, 'ምስሉ ከ8MB በታች መሆን አለበት!')
+    if len(message) > 900:
+      raise HTTPException(400, 'ምስል ሲያያዝ መልእክቱ ከ900 ቁምፊ መብለጥ የለበትም!')
+  with get_db() as c:
+    uids = [row[0] for row in c.execute('SELECT uid FROM users ORDER BY created_at').fetchall()]
+  keyboard = IKB()
+  keyboard.add(IBtn('🎮 Play Now', web_app=WebAppInfo(url=APP_URL)))
+  sent, failed = 0, 0
+  for uid in uids:
+    try:
+      if image_bytes:
+        photo = io.BytesIO(image_bytes)
+        photo.name = image_name
+        try:
+          bot.send_photo(uid, photo, caption=f'📢 ማስታወቂያ\n\n{message}')
+          time.sleep(0.15)
+          bot.send_message(uid, '👇 ጨዋታውን ለመክፈት ከታች ይጫኑ፦', reply_markup=keyboard)
+        except Exception as photo_exc:
+          print(f'Photo broadcast failed for {uid}: {type(photo_exc).__name__}: {photo_exc}')
+          # Always deliver the text announcement with the Play Now button
+          # even when Telegram cannot accept the attached image.
+          bot.send_message(uid, f'📢 ማስታወቂያ\n\n{message}', reply_markup=keyboard)
+      else:
+        bot.send_message(uid, f'📢 ማስታወቂያ\n\n{message}', reply_markup=keyboard)
+      sent += 1
+      time.sleep(0.05)
+    except Exception as exc:
+      failed += 1
+      print(f'Broadcast failed for {uid}: {type(exc).__name__}: {exc}')
+  return {'ok': True, 'sent': sent, 'failed': failed, 'total': len(uids)}
+
+@app.post('/api/withdraw')
+async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  ensure_finance_service_open(u['uid'])
+  b = await req.json()
+  try: amt = float(b.get('amount', 0))
+  except (TypeError, ValueError): raise HTTPException(400, 'የገንዘብ መጠኑ ትክክል አይደለም!')
+  raw_phone = str(b.get('phone', '')).strip()
+  # Accept Ethiopian mobile numbers in local (09XXXXXXXX) or international
+  # (+2519XXXXXXXX / 2519XXXXXXXX) format; store a consistent local number.
+  phone_digits = ''.join(ch for ch in raw_phone if ch.isdigit())
+  if phone_digits.startswith('251') and len(phone_digits) == 12:
+    ph = '0' + phone_digits[3:]
+  elif len(phone_digits) == 10 and phone_digits.startswith('09'):
+    ph = phone_digits
+  else:
+    ph = ''
+  method = str(b.get('method', 'TeleBirr')).strip()
+  if method not in ('TeleBirr', 'CBE Birr', 'CbeBirr'):
+    raise HTTPException(400, 'TeleBirr ወይም CbeBirr ይምረጡ!')
+  if not math.isfinite(amt) or amt < 100 or amt > 1000000 or not ph:
+    raise HTTPException(400, 'ዝቅተኛ 100 ETB እና ትክክለኛ 09XXXXXXXX ስልክ ቁጥር ያስገቡ!')
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    if available_wallet(c, u['uid']) < amt: raise HTTPException(400, 'በቂ ያልሆነ ባላንስ አለዎት!')
+    rid = c.execute('INSERT INTO requests (req_type,uid,amount,method,details,status,created_at) VALUES (?,?,?,?,?,?,?)',
+                    ('withdraw', u['uid'], amt, method, f'PENDING RESERVED | App Account: {ph}', 'pending', int(time.time()))).lastrowid
+  try:
+    # Send the request only to the admin whose finance turn is currently active.
+    aids = finance_admin_ids()
+    if bot and aids:
+      kb = IKB()
+      kb.row(IBtn('✅ ተልኳል', callback_data=f'ap_wd_{rid}'), IBtn('❌ ሰርዝና መልስ', callback_data=f'rj_wd_{rid}'))
+      player_phone = u.get('phone') or 'Not registered'
+      msg = f'🔔 አዲስ የወጪ ጥያቄ!\\n\\n🆔 Request #{rid}\\n👤 {u["name"]}\\n🆔 Player ID: {player_phone}\\n💵 {amt:.2f} ETB\\n🏦 የወጪ ዘዴ: {payment_method_label(method)}\\n📱 የተቀባይ ቁጥር: {ph}\\n⏳ ሁኔታ: PENDING'
+      for aid in aids:
+        try:
+          bot.send_message(aid, msg, reply_markup=kb)
+        except Exception:
+          pass
+  except Exception:
+    pass
+  return {'ok': True}
+, 3)
+        if algorithm == 'pbkdf2_sha256' and int(rounds) == 310000:
+          candidate = hashlib.pbkdf2_hmac('sha256', password.encode(), bytes.fromhex(salt_hex), int(rounds)).hex()
+          valid = hmac.compare_digest(candidate, hash_hex)
+      except Exception:
+        valid = False
+    if not valid:
+      c.execute('INSERT INTO apk_login_attempts(phone,ip,created_at) VALUES(?,?,?)', (phone, ip, now))
+      raise HTTPException(401, 'ስልክ ቁጥሩ ወይም Password ትክክል አይደለም።')
+    c.execute('DELETE FROM apk_login_attempts WHERE phone=? AND ip=?', (phone, ip))
+    c.execute('DELETE FROM apk_sessions WHERE expires_at<=?', (now,))
+    token = secrets.token_urlsafe(48)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    c.execute('INSERT INTO apk_sessions(token_hash,uid,expires_at,created_at,last_seen) VALUES(?,?,?,?,?)',
+              (token_hash, int(user['uid']), now + 30*24*60*60, now, now))
+  return {'ok': True, 'token': 'rb1.' + token, 'expires_in': 30*24*60*60}
+
+@app.post('/api/apk/logout')
+def api_apk_logout(x_tg_init_data: str = Header(default='')):
+  if x_tg_init_data.startswith('rb1.'):
+    digest = hashlib.sha256(x_tg_init_data[4:].encode()).hexdigest()
+    with get_db() as c:
+      c.execute('DELETE FROM apk_sessions WHERE token_hash=?', (digest,))
+  return {'ok': True}
 
 @app.get('/api/state')
 def api_state(stake: int = 10, x_tg_init_data: str = Header(default='')):
