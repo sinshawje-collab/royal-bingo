@@ -526,6 +526,19 @@ html,body,#appRoot{
 </head>
 <body>
 <div id="toast" class="toast"></div>
+<div id="apkLogin" style="display:none;position:fixed;inset:0;z-index:250;background:radial-gradient(circle at top,#30205b,#08031b 65%);padding:24px;align-items:center;justify-content:center;color:#f8f5ff">
+  <div style="width:100%;max-width:390px;background:#111827;border:1px solid rgba(251,191,36,.45);border-radius:22px;padding:24px;box-shadow:0 18px 60px #0009">
+    <div style="text-align:center;font-size:48px">👑</div><h2 style="text-align:center;color:#fbbf24;margin:8px 0 4px">ROYAL BINGO</h2>
+    <p style="text-align:center;color:#c4b5fd;font-size:13px;margin-bottom:22px">Standalone APK · Secure Login</p>
+    <label style="display:block;font-size:13px;color:#cbd5e1;margin:10px 0 6px">ስልክ ቁጥር</label>
+    <input id="apkPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="09XXXXXXXX" style="width:100%;padding:14px;border-radius:11px;border:1px solid #475569;background:#080f1e;color:white;font-size:16px">
+    <label style="display:block;font-size:13px;color:#cbd5e1;margin:14px 0 6px">Password</label>
+    <input id="apkPassword" type="password" autocomplete="current-password" placeholder="Password" style="width:100%;padding:14px;border-radius:11px;border:1px solid #475569;background:#080f1e;color:white;font-size:16px">
+    <button onclick="apkLogin()" style="width:100%;padding:14px;margin-top:18px;border:0;border-radius:12px;background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#1c1300;font-weight:900;font-size:16px">🔐 ግባ</button>
+    <div id="apkLoginMsg" style="min-height:22px;text-align:center;color:#fca5a5;font-size:12px;margin-top:12px"></div>
+    <p style="font-size:11px;color:#94a3b8;text-align:center;line-height:1.6">Password ካልዘጋጁ፣ በTelegram Mini App ገብተው Profile ውስጥ ያዘጋጁ።</p>
+  </div>
+</div>
 <div id="startupGuard" style="position:fixed;inset:0;z-index:200;background:#08031b;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8f5ff;text-align:center;padding:24px"><div style="font-size:48px;margin-bottom:12px">👑</div><strong style="font-size:20px;color:#ffd84d">ROYAL BINGO</strong><div style="margin-top:10px;color:#c4b5fd;font-size:13px">⏳ የመግቢያ ፈቃድዎን በማረጋገጥ ላይ...</div></div>
 <div id="authGuard" class="auth-err" style="display:none">
   <div style="font-size:48px;margin-bottom:10px">👑</div>
@@ -756,6 +769,15 @@ html,body,#appRoot{
       <div class="irow"><span style="color:var(--mut)">ያሸነፉት ጨዋታ፦</span><strong id="prWin" class="c-em">0</strong></div>
       <div class="irow"><span style="color:var(--mut)">ድጋፍ (Support)፦</span><strong id="prSup" class="c-blue">@royal_bingo_99_Support</strong></div>
     </div>
+    <div class="scard" id="apkPasswordPanel">
+      <div class="shd"><span>🔐 Standalone APK Password</span></div>
+      <p style="font-size:12px;color:var(--mut);line-height:1.6;margin-bottom:10px">የRoyal Bingo APK ለመጠቀም በTelegram የተረጋገጠውን አካውንትዎን ከPassword ጋር ያገናኙ። ይህን አንድ ጊዜ ብቻ ያድርጉ።</p>
+      <input id="apkNewPassword" type="password" autocomplete="new-password" placeholder="አዲስ Password (8+ characters)" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--bd);background:var(--card2);color:var(--txt);margin:5px 0">
+      <input id="apkConfirmPassword" type="password" autocomplete="new-password" placeholder="Password እንደገና ያስገቡ" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--bd);background:var(--card2);color:var(--txt);margin:5px 0">
+      <button class="btnp" style="width:100%;margin-top:8px" onclick="setApkPassword()">🔐 Password አዘጋጅ</button>
+      <button id="apkLogoutBtn" class="btnp" style="width:100%;margin-top:8px;background:#7f1d1d;display:none" onclick="apkLogout()">↪ APK Logout</button>
+      <div id="apkPasswordMsg" style="font-size:12px;margin-top:8px;color:var(--mut)"></div>
+    </div>
     <div class="scard">
       <div class="shd"><span>🎨 ገጽታ (Theme)</span></div>
       <div class="tgrid">
@@ -906,10 +928,12 @@ function toast(m) {
 
 function getLtr(n) { return n <= 15 ? 'B' : n <= 30 ? 'I' : n <= 45 ? 'N' : n <= 60 ? 'G' : 'O'; }
 
+function currentAuthValue(){ return initData || localStorage.getItem('royal_bingo_apk_token') || ''; }
+
 async function apiReq(url, method, body) {
   var opts = {
     method: method || 'GET',
-    headers: { 'Content-Type': 'application/json', 'X-Tg-Init-Data': initData }
+    headers: { 'Content-Type': 'application/json', 'X-Tg-Init-Data': currentAuthValue() }
   };
   if (body) opts.body = JSON.stringify(body);
   var res = await fetch(url, opts);
@@ -918,11 +942,49 @@ async function apiReq(url, method, body) {
     if (res.status === 401) {
       document.getElementById('appRoot').style.display = 'none';
       document.getElementById('startupGuard').style.display = 'none';
-      document.getElementById('authGuard').style.display = 'block';
+      if (!initData) { localStorage.removeItem('royal_bingo_apk_token'); showApkLogin(); }
+      else document.getElementById('authGuard').style.display = 'block';
     }
     throw new Error(data.detail || 'ስህተት ተፈጥሯል');
   }
   return data;
+}
+
+function showApkLogin(){
+  var el=document.getElementById('apkLogin'); if(el) el.style.display='flex';
+}
+async function apkLogin(){
+  var phone=document.getElementById('apkPhone').value.trim();
+  var password=document.getElementById('apkPassword').value;
+  var msg=document.getElementById('apkLoginMsg'); msg.style.color='#fca5a5'; msg.textContent='⏳ በማረጋገጥ ላይ...';
+  try{
+    var res=await fetch('/api/apk/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone,password:password})});
+    var data=await res.json().catch(function(){return {};});
+    if(!res.ok) throw new Error(data.detail||'መግባት አልተቻለም።');
+    localStorage.setItem('royal_bingo_apk_token',data.token);
+    document.getElementById('apkLogin').style.display='none';
+    document.getElementById('appRoot').style.display='';
+    document.getElementById('appRoot').style.visibility='visible';
+    document.getElementById('apkPasswordPanel').style.display='none';
+    document.getElementById('apkLogoutBtn').style.display='block';
+    await pollState();
+  }catch(e){msg.textContent='❌ '+e.message;}
+}
+async function setApkPassword(){
+  if(!initData){toast('Password ለማዘጋጀት በTelegram Mini App ይግቡ።');return;}
+  var p=document.getElementById('apkNewPassword').value, c=document.getElementById('apkConfirmPassword').value;
+  var msg=document.getElementById('apkPasswordMsg');
+  if(p.length<8){msg.textContent='Password ቢያንስ 8 ቁምፊ ይሁን።';return;}
+  if(p!==c){msg.textContent='Password አይመሳሰሉም።';return;}
+  msg.textContent='⏳ በማዘጋጀት ላይ...';
+  try{await apiReq('/api/apk/password','POST',{password:p});msg.textContent='✅ Password ተዘጋጅቷል። አሁን APK ላይ መግባት ይችላሉ።';}
+  catch(e){msg.textContent='❌ '+e.message;}
+}
+async function apkLogout(){
+  var token=localStorage.getItem('royal_bingo_apk_token')||'';
+  try{await fetch('/api/apk/logout',{method:'POST',headers:{'X-Tg-Init-Data':token}});}catch(e){}
+  localStorage.removeItem('royal_bingo_apk_token');
+  location.reload();
 }
 
 function checkWinLocal(grid, markMap) {
@@ -1287,10 +1349,10 @@ function renderAdminDashboard(data) {
   calledEl.innerHTML=called.length?called.slice(0,25).map(function(n,i){return '<div class="admin-ball"><b>'+getLtr(n)+'</b>'+n+'</div>';}).join(''):'<div class="admin-empty">ገና ኳስ አልተጠራም።</div>';
 }
 async function pollState() {
-  if (!initData) {
+  if (!currentAuthValue()) {
     document.getElementById('appRoot').style.display = 'none';
     document.getElementById('startupGuard').style.display = 'none';
-    document.getElementById('authGuard').style.display = 'block';
+    showApkLogin();
     return;
   }
   try {
