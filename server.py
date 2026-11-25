@@ -2245,7 +2245,7 @@ async def api_apk_login(req: Request):
   body = await req.json()
   phone = normalize_phone(body.get('phone')) if isinstance(body, dict) else ''
   password = str(body.get('password', '')) if isinstance(body, dict) else ''
-  if not phone or len(re.sub(r'\\D', '', phone)) != 12 or not password or len(password) > 128:
+  if not phone or len(re.sub(r'\D', '', phone)) != 12 or not password or len(password) > 128:
     raise HTTPException(400, 'ስልክ ቁጥርና Password በትክክል ያስገቡ።')
   ip = (req.client.host if req.client else 'unknown')[:64]
   now = int(time.time())
