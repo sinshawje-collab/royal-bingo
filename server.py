@@ -1426,7 +1426,6 @@ async def api_casino_session(req: Request, x_tg_init_data: str = Header(default=
       n-=10; aces-=1
     return n
   with get_db() as c:
-    c.execute('CREATE TABLE IF NOT EXISTS casino_sessions (session_id TEXT PRIMARY KEY, uid BIGINT NOT NULL, game TEXT NOT NULL, stake DOUBLE PRECISION NOT NULL, state TEXT NOT NULL, status TEXT NOT NULL, created_at BIGINT NOT NULL)')
     if action == 'start':
       game=str(b.get('game','')).lower()
       if game not in ('mines','cards','aviator'):
