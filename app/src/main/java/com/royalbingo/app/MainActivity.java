@@ -83,6 +83,34 @@ public class MainActivity extends Activity {
                 } catch (Exception ignored) { }
                 return true;
             }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                // Admin-only presentation: keep the existing secure APK login and server-side
+                // authorization, then expose the existing admin dashboard without the player lobby.
+                String adminOnlyScript =
+                    "(function(){" +
+                    "if(window.__rbAdminOnlyInstalled)return;window.__rbAdminOnlyInstalled=true;" +
+                    "var css='#appRoot>.hero-banner,#appRoot>.hdr,#appRoot>#lobbyView,#appRoot>.bnav,#appRoot>#tab-wallet,#appRoot>#tab-rank,#appRoot>#tab-history,#appRoot>#tab-profile{display:none!important}'+" +
+                    "'#appRoot>#tab-bingo{display:block!important;padding-top:12px!important}'+" +
+                    "'#appRoot>#tab-bingo>#adminDashboard{display:block!important}'+" +
+                    "'#appRoot>#tab-bingo>#lobbyView{display:none!important}';" +
+                    "var st=document.createElement('style');st.id='rbAdminOnlyStyle';st.textContent=css;document.head.appendChild(st);" +
+                    "function enforce(){var root=document.getElementById('appRoot');var dash=document.getElementById('adminDashboard');" +
+                    "if(!root||!dash)return;var login=document.getElementById('apkLogin');" +
+                    "var loggedIn=login&&getComputedStyle(login).display==='none'&&getComputedStyle(root).display!=='none';" +
+                    "if(loggedIn){document.body.classList.add('rb-admin-only');" +
+                    "var tabs=document.querySelectorAll('#appRoot .tab');tabs.forEach(function(t){t.classList.remove('on');});" +
+                    "var adminTab=document.getElementById('tab-bingo');if(adminTab)adminTab.classList.add('on');" +
+                    "dash.style.display='block';" +
+                    "var lobby=document.getElementById('lobbyView');if(lobby)lobby.style.display='none';" +
+                    "}}" +
+                    "var obs=new MutationObserver(enforce);obs.observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['style','class']});" +
+                    "document.addEventListener('DOMContentLoaded',enforce);setInterval(enforce,700);enforce();" +
+                    "})();";
+                view.evaluateJavascript(adminOnlyScript, null);
+            }
         });
         webView.loadUrl(HOME);
     }
