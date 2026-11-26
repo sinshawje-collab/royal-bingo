@@ -9,7 +9,6 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.content.Intent;
 import android.net.Uri;
-import android.view.KeyEvent;
 import android.view.Gravity;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -28,8 +27,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(android.graphics.Color.rgb(8, 3, 27));
-        getWindow().setNavigationBarColor(android.graphics.Color.rgb(8, 3, 27));
+        getWindow().setStatusBarColor(Color.rgb(8, 3, 27));
+        getWindow().setNavigationBarColor(Color.rgb(8, 3, 27));
 
         FrameLayout root = new FrameLayout(this);
         webView = new WebView(this);
@@ -55,7 +54,6 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.WRAP_CONTENT, dp(46), Gravity.BOTTOM | Gravity.END);
         readerParams.setMargins(0, 0, dp(14), dp(78));
         root.addView(readerButton, readerParams);
-
         setContentView(root);
 
         WebSettings settings = webView.getSettings();
@@ -78,45 +76,52 @@ public class MainActivity extends Activity {
                 Uri uri = request.getUrl();
                 String host = uri.getHost() == null ? "" : uri.getHost();
                 if ("royal-bingo-9u3a.onrender.com".equalsIgnoreCase(host)) return false;
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
-                } catch (Exception ignored) { }
+                try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); }
+                catch (Exception ignored) { }
                 return true;
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                // Admin-only presentation: keep the existing secure APK login and server-side
-                // authorization, then expose the existing admin dashboard without the player lobby.
-                String adminOnlyScript =
-                    "(function(){" +
-                    "if(window.__rbAdminOnlyInstalled)return;window.__rbAdminOnlyInstalled=true;" +
-                    "var css='body.rb-admin-only #appRoot> :not(#tab-bingo):not(#financeRotationBox):not(#adminBroadcast){display:none!important}'+ " +
-                    "'body.rb-admin-only #appRoot>#tab-bingo{display:block!important;padding:12px 8px!important}'+ " +
+                String script =
+                    "(function(){if(window.__rbAdminShell)return;window.__rbAdminShell=true;" +
+                    "var css='#appRoot{visibility:hidden!important}'+ " +
+                    "'body.rb-admin-only #appRoot{visibility:visible!important}'+ " +
+                    "'body.rb-admin-only #appRoot> :not(#tab-bingo):not(#financeRotationBox):not(#adminBroadcast){display:none!important}'+ " +
+                    "'body.rb-admin-only #appRoot>#tab-bingo{display:block!important;padding:12px 8px 90px!important}'+ " +
                     "'body.rb-admin-only #appRoot>#tab-bingo> :not(#adminDashboard){display:none!important}'+ " +
-                    "'body.rb-admin-only #appRoot>#adminDashboard{display:block!important}';" +
-                    "var st=document.createElement('style');st.id='rbAdminOnlyStyle';st.textContent=css;document.head.appendChild(st);" +
-                    "var checking=false,confirmed=false;" +
-                    "function enforce(){var root=document.getElementById('appRoot');var dash=document.getElementById('adminDashboard');" +
-                    "if(!root||!dash||confirmed||checking)return;" +
-                    "var login=document.getElementById('apkLogin');" +
+                    "'body.rb-admin-only #appRoot #adminDashboard{display:block!important}';" +
+                    "var st=document.createElement('style');st.id='rbAdminShellStyle';st.textContent=css;document.head.appendChild(st);" +
+                    "function brandLogin(){var box=document.getElementById('apkLogin');if(!box)return;" +
+                    "var h=box.querySelector('h2');if(h)h.textContent='ROYAL BINGO ADMIN';" +
+                    "var p=box.querySelector('p');if(p&&p.textContent.indexOf('Standalone APK')>=0)p.textContent='ADMIN CONTROL CENTER · SECURE LOGIN';" +
+                    "var labels=box.querySelectorAll('label');if(labels.length)labels[0].textContent='Admin ስልክ ቁጥር';" +
+                    "var btn=box.querySelector('button');if(btn)btn.textContent='🔐  ADMIN LOGIN';" +
+                    "var help=box.querySelector('p:last-child');if(help)help.textContent='የተፈቀደ Admin መለያ ብቻ ይጠቀሙ።';}" +
+                    "var verified=false,checking=false;" +
+                    "async function verifyAdmin(){if(verified||checking)return;var login=document.getElementById('apkLogin');" +
                     "if(login&&getComputedStyle(login).display!=='none')return;" +
-                    "if(getComputedStyle(root).visibility==='hidden'||getComputedStyle(root).display==='none')return;" +
+                    "var token=localStorage.getItem('royal_bingo_apk_token')||'';if(!token)return;" +
                     "if(typeof apiReq!=='function')return;checking=true;" +
-                    "apiReq('/api/state?stake=10').then(function(data){" +
-                    "if(!data||data.is_admin!==true){dash.style.display='none';document.body.classList.remove('rb-admin-only');return;}" +
-                    "if(typeof renderState==='function')renderState(data);" +
-                    "dash.style.display='block';document.body.classList.add('rb-admin-only');" +
-                    "var tabs=document.querySelectorAll('#appRoot .tab');tabs.forEach(function(t){t.classList.remove('on');});" +
-                    "var adminTab=document.getElementById('tab-bingo');if(adminTab)adminTab.classList.add('on');" +
-                    "confirmed=true;" +
-                    "}).catch(function(){dash.style.display='none';document.body.classList.remove('rb-admin-only');}).finally(function(){checking=false;});" +
-                    "}" +
-                    "var obs=new MutationObserver(enforce);obs.observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['style','class']});" +
-                    "document.addEventListener('DOMContentLoaded',enforce);setInterval(enforce,500);enforce();" +
+                    "try{var d=await apiReq('/api/state?stake=10');if(!d||d.is_admin!==true){" +
+                    "localStorage.removeItem('royal_bingo_apk_token');document.body.classList.remove('rb-admin-only');" +
+                    "var root=document.getElementById('appRoot');if(root)root.style.display='none';" +
+                    "var dash=document.getElementById('adminDashboard');if(dash)dash.style.display='none';" +
+                    "var msg=document.getElementById('apkLoginMsg');if(msg){msg.style.color='#fca5a5';msg.textContent='❌ Admin ፈቃድ ያለው መለያ ብቻ ይጠቀሙ።';}" +
+                    "if(typeof showApkLogin==='function')showApkLogin();return;}" +
+                    "if(typeof renderState==='function')renderState(d);window.adminSessionConfirmed=true;" +
+                    "var dash=document.getElementById('adminDashboard');if(dash)dash.style.display='block';" +
+                    "document.body.classList.add('rb-admin-only');var tabs=document.querySelectorAll('#appRoot .tab');" +
+                    "tabs.forEach(function(t){t.classList.remove('on');});var tab=document.getElementById('tab-bingo');if(tab)tab.classList.add('on');verified=true;" +
+                    "}catch(e){console.warn('Admin verification failed',e);}finally{checking=false;}}" +
+                    "var oldLogin=window.apkLogin;if(typeof oldLogin==='function'&&!window.__rbLoginWrapped){" +
+                    "window.__rbLoginWrapped=true;window.apkLogin=async function(){await oldLogin();setTimeout(verifyAdmin,250);};}" +
+                    "brandLogin();var mo=new MutationObserver(function(){brandLogin();});" +
+                    "mo.observe(document.documentElement,{subtree:true,childList:true});" +
+                    "setInterval(verifyAdmin,700);setInterval(brandLogin,1500);verifyAdmin();" +
                     "})();";
-                view.evaluateJavascript(adminOnlyScript, null);
+                view.evaluateJavascript(script, null);
             }
         });
         webView.loadUrl(HOME);
