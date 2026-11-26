@@ -711,7 +711,7 @@ html,body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",san
       </div>
     </div>
     <div class="hact">
-      <button id="sndBtn" class="ibtn" onclick="toggleSound()">🔊</button>
+      <button id="sndBtn" class="ibtn" onclick="toggleSound()">🔇</button>
       <div class="wchip" onclick="goTab('wallet')"><span class="coin">₵</span><span id="hBal">0.00</span></div>
     </div>
   </header>
@@ -985,7 +985,7 @@ if (tg) {
   try { tg.ready(); tg.expand(); initData = tg.initData || ''; } catch (e) {}
 }
 
-var stake = 10, soundOn = true, autoMark = true;
+var stake = 10, soundOn = false, autoMark = true;
 var lastCalledBall = null, lastWinnerCard = null, manualMarks = {};
 var latestState = null, busy = false, tTmr = null;
 var adminSessionConfirmed = false;
@@ -1061,23 +1061,10 @@ function launchWinCelebration() {
   setTimeout(function() { layer.classList.remove('on'); layer.innerHTML = ''; }, 5500);
 }
 
+// Original number-caller audio is intentionally disabled.
+ // Add the new approved audio files and playback mapping here later.
 function playVoice(file, fallbackTxt, freq) {
-  if (!soundOn) return;
-  ensureAudioUnlocked();
-  try {
-    voiceAudio.pause();
-    voiceAudio.currentTime = 0;
-    voiceAudio.volume = 1.0;
-    voiceAudio.src = '/sounds/' + file + '.mp3';
-    var p = voiceAudio.play();
-    if (p && p.catch) {
-      p.catch(function() {
-        speakText(fallbackTxt, freq);
-      });
-    }
-  } catch (e) {
-    speakText(fallbackTxt, freq);
-  }
+  return;
 }
 
 document.addEventListener('pointerdown', function() {
