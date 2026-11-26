@@ -654,10 +654,16 @@ if bot:
     except Exception:
       pass
     if len(password) < 8 or len(password) > 128:
-      return bot.send_message(m.chat.id, '❌ Password ቢያንስ 8 እና ከ128 ቁምፊ ያልበለጠ ይሁን።\n\nምሳሌ፦ /setadminpassword YourStrongPassword')
+      return bot.send_message(m.chat.id, '❌ Password ቢያንስ 8 እና ከ128 ቁምፊ ያልበለጠ ይሁን።\\n\\nምሳሌ፦ /setadminpassword YourStrongPassword')
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 310000)
-    encoded = 'pbkdf2_sha256$310000
+    encoded = 'pbkdf2_sha256$310000$' + salt.hex() + '$' + digest.hex()
+    with get_db() as c:
+      row = c.execute('SELECT phone FROM users WHERE uid=?', (uid,)).fetchone()
+      if not row or not row['phone']:
+        return bot.send_message(m.chat.id, '❌ መጀመሪያ በBot ውስጥ ስልክ ቁጥርዎን ያረጋግጡ።')
+      c.execute('UPDATE users SET apk_password_hash=? WHERE uid=?', (encoded, uid))
+    bot.send_message(m.chat.id, '✅ የAdmin APK Password ተዘጋጅቷል። አሁን በAPK ውስጥ በስልክ ቁጥርዎና በአዲሱ Password ይግቡ።')
 
   @bot.message_handler(commands=['admin', 'adminpanel'])
   @bot.message_handler(func=lambda m: bool(m.text) and m.text.strip().replace('👑', '').strip().lower() in ('admin panel', 'admin'))
