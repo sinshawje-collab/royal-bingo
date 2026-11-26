@@ -1309,7 +1309,7 @@ async def api_casino_play(req: Request, x_tg_init_data: str = Header(default='')
     n = rng.randrange(37)
     color = 'green' if n == 0 else ('red' if n in {1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36} else 'black')
     win = (choice == color) or (choice == 'odd' and n % 2 == 1) or (choice == 'even' and n != 0 and n % 2 == 0) or (choice.startswith('number:') and choice.split(':',1)[1].isdigit() and int(choice.split(':',1)[1]) == n)
-    multiplier = 36.0 if choice.startswith('number:') and win else (1.94 if win else 0.0)
+    multiplier = (36.0 if choice.startswith('number:') else (36.0 if choice == 'green' else 1.94)) if win else 0.0
     result, detail = f'{n} · {color.upper()}', {'number': n, 'color': color}
   elif game in ('dice','sicbo'):
     dice = [rng.randint(1,6) for _ in range(3 if game == 'sicbo' else 2)]
@@ -1361,7 +1361,7 @@ async def api_casino_play(req: Request, x_tg_init_data: str = Header(default='')
     if game == 'baccarat':
       player,banker = rng.randint(0,9),rng.randint(0,9)
       win = (choice == 'player' and player > banker) or (choice == 'banker' and banker > player)
-      multiplier = 1.95 if win and choice == 'banker' else (2.0 if win else (1.0 if player == banker else 0.0))
+      multiplier = 1.95 if win and choice == 'banker' else (2.0 if win else (8.0 if player == banker and choice == 'tie' else 0.0))
       result, detail = f'PLAYER {player} · BANKER {banker}', {'player':player,'banker':banker}
     elif game == 'dragon':
       win = (choice == 'dragon' and a > b) or (choice == 'tiger' and b > a)
@@ -1444,7 +1444,12 @@ async def api_casino_session(req: Request, x_tg_init_data: str = Header(default=
         except Exception: count=3
         state={'mine_count':count,'mines':rng.sample(range(25),count),'revealed':[],'multiplier':1.0}
       elif game=='cards':
-        deck=[card() for _ in range(52)]
+        deck=[]
+        for suit in ['♠','♥','♦','♣']:
+          for rank in ['A','2','3','4','5','6','7','8','9','10','J','Q','K']:
+            value=11 if rank=='A' else (10 if rank in ('J','Q','K') else int(rank))
+            deck.append({'rank':rank,'suit':suit,'value':value})
+        rng.shuffle(deck)
         player=[deck.pop(),deck.pop()]; dealer=[deck.pop(),deck.pop()]
         state={'deck':deck,'player':player,'dealer':dealer,'status':'playing'}
       else:
