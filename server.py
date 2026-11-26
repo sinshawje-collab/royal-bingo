@@ -1203,6 +1203,8 @@ async def api_apk_login(req: Request):
     if int(attempts['n'] or 0) >= 8:
       raise HTTPException(429, 'ብዙ ጊዜ ሞክረዋል። ከ15 ደቂቃ በኋላ ይሞክሩ።')
     user = c.execute('SELECT * FROM users WHERE phone=?', (phone,)).fetchone()
+    if user and not is_adm(user['uid']):
+      raise HTTPException(403, 'ይህ APK ለተፈቀዱ Admin ብቻ ነው።')
     stored = user['apk_password_hash'] if user else None
     valid = False
     if stored:
