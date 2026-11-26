@@ -1278,6 +1278,132 @@ async def api_claim(req: Request, x_tg_init_data: str = Header(default='')):
     finish_round(r, u['uid'], u['name'], cno, wl)
     return {'ok': True, 'prize': r['winner']['prize']}
 
+@app.post('/api/casino/play')
+async def api_casino_play(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  body = await req.json()
+  game = str(body.get('game', '')).strip().lower()
+  allowed = {'slots','aviator','keno','plinko','roulette','dice','coin','wheel','mines','cards','scratch','hilo','baccarat','poker','tower','sicbo','dragon','limbo','kenoquick','scratch2'}
+  if game not in allowed:
+    raise HTTPException(400, 'የተመረጠው ጨዋታ አይገኝም።')
+  try:
+    stake = round(float(body.get('stake', 0)), 2)
+  except (TypeError, ValueError):
+    raise HTTPException(400, 'የውርርድ መጠኑን ያረጋግጡ።')
+  if not math.isfinite(stake) or stake < 1 or stake > 1000:
+    raise HTTPException(400, 'የጨዋታ መጠን ከ1 ETB እስከ 1,000 ETB መሆን አለበት።')
+  choice = str(body.get('choice', '')).strip().lower()
+  rng = secrets.SystemRandom()
+  result, multiplier, detail = '', 0.0, {}
+  if game == 'slots':
+    symbols = ['🍒','🔔','💎','👑','7️⃣']
+    reels = [rng.choice(symbols) for _ in range(3)]
+    multiplier = 8.0 if len(set(reels)) == 1 else (1.5 if len(set(reels)) == 2 else 0.0)
+    result, detail = ' · '.join(reels), {'reels': reels}
+  elif game in ('coin',):
+    outcome = rng.choice(['heads','tails'])
+    multiplier = 1.95 if choice == outcome else 0.0
+    result, detail = outcome.upper(), {'outcome': outcome}
+  elif game == 'roulette':
+    n = rng.randrange(37)
+    color = 'green' if n == 0 else ('red' if n in {1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36} else 'black')
+    win = (choice == color) or (choice == 'odd' and n % 2 == 1) or (choice == 'even' and n != 0 and n % 2 == 0) or (choice.startswith('number:') and choice.split(':',1)[1].isdigit() and int(choice.split(':',1)[1]) == n)
+    multiplier = 36.0 if choice.startswith('number:') and win else (1.94 if win else 0.0)
+    result, detail = f'{n} · {color.upper()}', {'number': n, 'color': color}
+  elif game in ('dice','sicbo'):
+    dice = [rng.randint(1,6) for _ in range(3 if game == 'sicbo' else 2)]
+    total = sum(dice)
+    win = (choice == 'high' and total > (10 if game == 'sicbo' else 7)) or (choice == 'low' and total < (11 if game == 'sicbo' else 7)) or (choice == 'seven' and total == 7)
+    multiplier = (5.0 if choice == 'seven' else 1.9) if win else 0.0
+    result, detail = f'{" + ".join(map(str,dice))} = {total}', {'dice': dice, 'total': total}
+  elif game in ('keno','kenoquick'):
+    raw = body.get('numbers', [])
+    try: picks = sorted(set(int(x) for x in raw))
+    except Exception: picks = []
+    if not 1 <= len(picks) <= 10 or any(x < 1 or x > 40 for x in picks):
+      raise HTTPException(400, 'ከ1 እስከ 40 ያሉ 1–10 የተለያዩ ቁጥሮችን ይምረጡ።')
+    drawn = sorted(rng.sample(range(1,41), 10))
+    hits = len(set(picks) & set(drawn))
+    table = {1:{1:2.5},2:{2:5,1:0},3:{3:12,2:1.2},4:{4:25,3:2,2:0},5:{5:45,4:5,3:0},6:{6:80,5:10,4:1},7:{7:150,6:20,5:2},8:{8:250,7:35,6:4},9:{9:500,8:70,7:8},10:{10:1000,9:150,8:20,7:3}}
+    multiplier = table[len(picks)].get(hits, 0.0)
+    result, detail = f'{hits}/{len(picks)} HIT · DRAW: {", ".join(map(str,drawn))}', {'drawn': drawn, 'picks': picks, 'hits': hits}
+  elif game in ('aviator','limbo'):
+    try: target = float(body.get('target', 2))
+    except (TypeError, ValueError): target = 2
+    if not math.isfinite(target) or target < 1.1 or target > 10:
+      raise HTTPException(400, 'Target ከ1.10x እስከ 10.00x ይሁን።')
+    crashed = rng.random() > (0.97 / target)
+    multiplier = 0.0 if crashed else target
+    crash_at = round(max(1.0, rng.expovariate(1.0)), 2)
+    result, detail = (f'CRASH {crash_at:.2f}x' if crashed else f'CASHOUT {target:.2f}x'), {'target': target, 'crashed': crashed, 'crash_at': crash_at}
+  elif game == 'mines':
+    try: gems = int(body.get('gems', 2))
+    except (TypeError, ValueError): gems = 2
+    if not 1 <= gems <= 5: raise HTTPException(400, 'ከ1 እስከ 5 እንቁ ይምረጡ።')
+    safe = all(rng.random() < 0.78 for _ in range(gems))
+    multiplier = round((1.0 / (0.78 ** gems)) * 0.92, 2) if safe else 0.0
+    result, detail = (f'💎 {gems} SAFE PICKS' if safe else '💣 MINE!'), {'gems': gems, 'safe': safe}
+  elif game == 'hilo':
+    a,b = rng.randint(1,13),rng.randint(1,13)
+    win = (choice == 'higher' and b > a) or (choice == 'lower' and b < a)
+    multiplier = 1.85 if win else 0.0
+    result, detail = f'{a} → {b}', {'first':a,'next':b}
+  elif game == 'tower':
+    try: steps = int(body.get('steps', 2))
+    except (TypeError, ValueError): steps = 2
+    if not 1 <= steps <= 5: raise HTTPException(400, '1–5 ደረጃ ይምረጡ።')
+    safe = all(rng.random() < 0.82 for _ in range(steps))
+    multiplier = round((0.94 / (0.82 ** steps)),2) if safe else 0.0
+    result, detail = (f'🏆 FLOOR {steps}' if safe else '💥 FALL!'), {'steps':steps,'safe':safe}
+  elif game in ('baccarat','dragon','cards','poker'):
+    a,b = rng.randint(1,13),rng.randint(1,13)
+    if game == 'baccarat':
+      player,banker = rng.randint(0,9),rng.randint(0,9)
+      win = (choice == 'player' and player > banker) or (choice == 'banker' and banker > player)
+      multiplier = 1.95 if win and choice == 'banker' else (2.0 if win else (1.0 if player == banker else 0.0))
+      result, detail = f'PLAYER {player} · BANKER {banker}', {'player':player,'banker':banker}
+    elif game == 'dragon':
+      win = (choice == 'dragon' and a > b) or (choice == 'tiger' and b > a)
+      multiplier = 1.9 if win else 0.0
+      result, detail = f'DRAGON {a} · TIGER {b}', {'dragon':a,'tiger':b}
+    elif game == 'cards':
+      player, dealer = rng.randint(17,21), rng.randint(17,21)
+      multiplier = 1.95 if player > dealer else (1.0 if player == dealer else 0.0)
+      result, detail = f'YOU {player} · DEALER {dealer}', {'player':player,'dealer':dealer}
+    else:
+      hand = sorted([rng.randint(1,13) for _ in range(5)])
+      counts = [hand.count(x) for x in set(hand)]
+      rank = 8 if len(set(hand)) == 1 else (4 if 4 in counts else (3 if 3 in counts and 2 in counts else (2 if 3 in counts else (1 if 2 in counts else 0))))
+      multiplier = [0,1.2,1.8,3,8,12,20,35,50][rank]
+      result, detail = f'POKER HAND {hand} · RANK {rank}', {'hand':hand,'rank':rank}
+  elif game in ('wheel','plinko'):
+    options = [(0.0,45),(1.2,30),(1.8,16),(3.0,7),(8.0,2)]
+    x = rng.randrange(100)
+    cumulative = 0
+    for m,w in options:
+      cumulative += w
+      if x < cumulative: multiplier=m; break
+    result, detail = (f'WHEEL {multiplier:g}x' if game == 'wheel' else f'POCKET {multiplier:g}x'), {'multiplier':multiplier}
+  else:
+    symbols = ['⭐','💎','👑','🍀','🎁']
+    symbol = rng.choice(symbols)
+    multiplier = 5.0 if symbol == '👑' else (2.0 if symbol == '💎' else (1.2 if symbol == '⭐' else 0.0))
+    result, detail = symbol, {'symbol':symbol}
+  payout = round(stake * multiplier, 2)
+  with get_db() as c:
+    c.execute('BEGIN IMMEDIATE')
+    c.execute('SELECT uid FROM users WHERE uid=? FOR UPDATE', (u['uid'],))
+    balance = available_wallet(c, u['uid'])
+    if balance < stake:
+      raise HTTPException(400, f'በቂ Wallet የለዎትም። ያለዎት {balance:.2f} ETB ነው።')
+    c.execute('UPDATE users SET play_wallet=play_wallet-? WHERE uid=?', (stake, u['uid']))
+    add_tx(c, u['uid'], '🎮', f'{game.upper()} ጨዋታ ውርርድ', -stake)
+    if payout > 0:
+      c.execute('UPDATE users SET play_wallet=play_wallet+?, total_won=total_won+? WHERE uid=?', (payout, payout, u['uid']))
+      add_tx(c, u['uid'], '🏆', f'{game.upper()} አሸናፊ ክፍያ ({multiplier:g}x)', payout)
+    final = c.execute('SELECT play_wallet FROM users WHERE uid=?', (u['uid'],)).fetchone()
+  return {'ok':True,'game':game,'result':result,'detail':detail,'stake':stake,'multiplier':multiplier,'payout':payout,'net':round(payout-stake,2),'balance':round(float(final['play_wallet'] or 0),2)}
+
 @app.post('/api/transfer')
 async def api_transfer(req: Request, x_tg_init_data: str = Header(default='')):
   u = auth_user(x_tg_init_data)
