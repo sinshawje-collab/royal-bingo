@@ -676,7 +676,105 @@ html,body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",san
 .games-kicker{font-size:8px;letter-spacing:2px;font-weight:900;color:#e9c77f}.games-title{font-size:29px;font-weight:1000;color:#fff4d8;margin-top:8px}.games-title em{font-style:normal;color:#f6c866}.games-hero p{font-size:11px;color:#d1c3d5;margin-top:7px}.games-safe{margin-top:14px;padding:8px;border-radius:10px;background:rgba(16,185,129,.1);border:1px solid rgba(52,211,153,.28);color:#8ee7bd;font-size:8px;font-weight:900;text-align:center}
 .games-section-head{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px}.games-section-head div{display:flex;flex-direction:column;gap:3px}.games-section-head small{font-size:8px;letter-spacing:1.6px;color:#c5a96d;font-weight:900}.games-section-head strong{font-size:14px;color:var(--txt)}.games-section-head>span{font-size:9px;color:#e8c477;border:1px solid rgba(232,196,119,.3);padding:5px 8px;border-radius:20px}
 .games-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.game-tile{min-width:0;display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:13px 12px;border-radius:17px;border:1px solid rgba(226,190,123,.2);background:linear-gradient(145deg,#1b1b2c,#101321);color:#fff;box-shadow:0 8px 18px rgba(0,0,0,.2);cursor:pointer;min-height:143px}.game-tile.featured{border-color:rgba(245,198,92,.6);background:linear-gradient(145deg,#30233a,#111321)}.game-art{display:grid;place-items:center;width:47px;height:47px;border-radius:14px;background:rgba(245,198,92,.12);border:1px solid rgba(245,198,92,.28);font-size:27px;margin-bottom:10px}.game-tile b{font-size:11px;color:#ffedc4}.game-tile small{font-size:9px;color:#a9a4b8;margin-top:4px}.game-tile i{font-style:normal;font-size:8px;font-weight:950;color:#e8bd68;margin-top:auto;padding-top:12px}
-.casino-game-panel{margin-top:16px;padding:14px;border-radius:18px;border:1px solid rgba(245,198,92,.35);background:linear-gradient(145deg,#19172a,#0c1120)}.game-panel-top{display:flex;align-items:center;justify-content:space-between}.game-panel-top div{display:flex;flex-direction:column;gap:3px}.game-panel-top small{font-size:8px;color:#c6a96c;font-weight:900}.game-panel-top strong{font-size:14px;color:#ffedc4}.game-panel-top button{width:29px;height:29px;border-radius:9px;background:#222337;color:#fff}.casino-game-stage{min-height:125px;margin-top:12px;border-radius:14px;background:#090e1b;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:#ffe3a0;font-size:34px}.casino-game-stage p{font-size:11px;color:#b7b3c2}.casino-game-result{text-align:center;min-height:34px;padding:10px 4px;color:#e9cf93;font-size:12px;font-weight:800}.casino-play-btn{width:100%;padding:12px;border:0;border-radius:12px;background:linear-gradient(135deg,#ffe3a0,#d99b3e);color:#26172a;font-size:12px;font-weight:1000}.casino-play-btn:disabled{opacity:.4}.game-demo-note{font-size:9px;color:#8e8da0;text-align:center;margin-top:9px}@media(max-width:360px){.games-title{font-size:25px}.game-tile{min-height:133px;padding:10px}.nbtn{font-size:8px}.nbtn .ni{font-size:16px}}</style>
+.casino-game-panel{margin-top:16px;padding:14px;border-radius:18px;border:1px solid rgba(245,198,92,.35);background:linear-gradient(145deg,#19172a,#0c1120)}.game-panel-top{display:flex;align-items:center;justify-content:space-between}.game-panel-top div{display:flex;flex-direction:column;gap:3px}.game-panel-top small{font-size:8px;color:#c6a96c;font-weight:900}.game-panel-top strong{font-size:14px;color:#ffedc4}.game-panel-top button{width:29px;height:29px;border-radius:9px;background:#222337;color:#fff}.casino-game-stage{min-height:125px;margin-top:12px;border-radius:14px;background:#090e1b;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:#ffe3a0;font-size:34px}.casino-game-stage p{font-size:11px;color:#b7b3c2}.casino-game-result{text-align:center;min-height:34px;padding:10px 4px;color:#e9cf93;font-size:12px;font-weight:800}.casino-play-btn{width:100%;padding:12px;border:0;border-radius:12px;background:linear-gradient(135deg,#ffe3a0,#d99b3e);color:#26172a;font-size:12px;font-weight:1000}.casino-play-btn:disabled{opacity:.4}.game-demo-note{font-size:9px;color:#8e8da0;text-align:center;margin-top:9px}@media(max-width:360px){.games-title{font-size:25px}.game-tile{min-height:133px;padding:10px}.nbtn{font-size:8px}.nbtn .ni{font-size:16px}}
+/* ROYAL BINGO — reference video visual system (presentation-only; all existing actions preserved) */
+:root{
+ --bg:#075b91;--card:#ffffff;--card2:#e8eef5;--el:#d5e1ed;
+ --bd:rgba(16,42,76,.16);--bdg:rgba(255,190,30,.7);
+ --txt:#15243a;--mut:#52657d;--dim:#73859b;
+ --gold:#f2bd16;--gold2:#ffcf24;--ggrad:linear-gradient(135deg,#ffd84b,#ffb900);
+ --em:#168b59;--egrad:linear-gradient(135deg,#16a56c,#087b4d);
+ --nav:rgba(48,25,79,.98);--sh:0 3px 10px rgba(4,26,55,.16);
+}
+body.light{--bg:#075b91;--card:#fff;--card2:#edf2f7;--el:#d5e1ed;--bd:rgba(16,42,76,.16);--txt:#15243a;--mut:#52657d;--nav:rgba(48,25,79,.98)}
+html,body{background:#075b91!important;color:#f7faff}
+#appRoot{max-width:480px;background:linear-gradient(180deg,#0b649b 0%,#075487 100%);min-height:100vh;padding-bottom:76px}
+#appRoot>.royal-logo-hero{display:none!important}
+#appRoot>.hdr{margin:0 0 10px!important;padding:7px 10px!important;min-height:48px;border-radius:0 0 10px 10px!important;border:0!important;border-bottom:2px solid #e6b92b!important;background:linear-gradient(100deg,#30194e,#49256c)!important;box-shadow:0 3px 9px #062c4c66!important}
+#appRoot .badge{width:36px!important;height:36px!important;min-width:36px!important;flex:0 0 36px!important;border-radius:50%!important;border:1px solid #f5cc48!important;box-shadow:none!important}
+#appRoot .btitle{font-size:13px!important;color:#fff!important;letter-spacing:.6px!important;text-shadow:none!important}
+#appRoot .live-pill{font-size:8px!important;color:#a9f2d0!important;background:#0c694c!important;border:0!important}
+#appRoot .ibtn{width:30px;height:30px;background:#182b4b;color:#fff;border:1px solid #d8bb50}
+#appRoot .wchip{min-height:30px!important;padding:5px 9px!important;border-radius:7px!important;background:#172b4c!important;border:1px solid #d7bd55!important;color:#ffe36a!important;font-size:11px!important}
+#appRoot .coin{background:#ffcf29;color:#30204b}
+#appRoot .tab{padding:7px 9px 14px!important}
+#appRoot .casino-hero{margin:5px 0 10px!important;padding:12px!important;border-radius:12px!important;border:1px solid #83b5d6!important;background:linear-gradient(145deg,#126a9f,#084c7e)!important;box-shadow:0 4px 12px #00395b55!important}
+#appRoot .casino-kicker{font-size:8px;color:#c6e9ff}
+#appRoot .casino-headline{font-size:22px!important;color:#fff!important;margin-top:4px!important}
+#appRoot .casino-headline em{color:#ffdb45!important}
+#appRoot .casino-caption{font-size:7px;color:#d5edff}
+#appRoot .casino-crown{width:42px;height:42px;flex-basis:42px;border-radius:12px;background:#154c75;border-color:#f2ce4b;font-size:26px}
+#appRoot .casino-balance{margin-top:9px;padding:8px 10px;border-radius:9px;background:#fff;border:1px solid #e7c84a;box-shadow:none}
+#appRoot .casino-balance-label{color:#586b80;font-size:8px}
+#appRoot .casino-balance-value{font-size:22px;color:#172a48!important}
+#appRoot .casino-balance-value small{color:#52657d}
+#appRoot .casino-balance-mark{color:#d9a900}
+#appRoot .casino-actions{gap:6px;margin-top:8px}
+#appRoot .casino-actions button{min-height:35px;border-radius:8px;background:#372052;color:#fff;border:1px solid #765493;font-size:8px;box-shadow:none}
+#appRoot .casino-actions button:first-child{background:#ffd22d;color:#2c2041;border-color:#ffe77d}
+#lobbyHomeView>.srow4 .sbox,#appRoot .sbox{border-radius:8px!important;padding:7px 3px!important;background:#f9fbff!important;border:1px solid #c3d5e4!important;box-shadow:0 2px 5px #00385b35!important}
+#lobbyHomeView>.srow4 .slbl{color:#65768b!important;font-size:8px!important}
+#lobbyHomeView>.srow4 .sval{font-size:14px!important;color:#17385d!important}
+#appRoot .status-banner{border-radius:8px!important;background:#164b75!important;border:1px solid #5ba1cc!important;color:#e8f7ff!important;box-shadow:none!important;padding:8px!important}
+#appRoot .status-banner.counting{background:#6b4a0b!important;color:#fff1b8!important}
+#appRoot .tier-head{margin:12px 2px 7px!important;color:#fff!important;letter-spacing:.8px!important;font-size:11px!important}
+#appRoot .tier-spark{width:25px!important;height:25px!important;border-radius:7px!important;background:#ffd12e!important;color:#33204c!important;box-shadow:none!important}
+#appRoot .tier-list{gap:6px!important}
+#appRoot .tier-card{min-height:61px!important;padding:7px 76px 7px 9px!important;border-radius:8px!important;border:1px solid #b6c9dc!important;background:linear-gradient(100deg,#fff,#e9eff7)!important;box-shadow:0 2px 5px #00385b38!important}
+#appRoot .tier-card:before,#appRoot .tier-card:after{display:none!important}
+#appRoot .tier-card.active{border:2px solid #ffd32f!important;background:#fff9df!important;box-shadow:0 0 0 1px #f4c52c!important}
+#appRoot .tier-coin{width:32px!important;height:32px!important;flex-basis:32px!important;border-radius:50%!important;background:linear-gradient(145deg,#e6f3ff,#a8d1ee)!important;color:#16466c!important;font-size:17px!important;box-shadow:none!important}
+#appRoot .tier-info strong{font:900 14px system-ui!important;color:#172f4b!important}
+#appRoot .tier-info span{font-size:8px!important;color:#66788c!important}
+#appRoot .tier-stats{margin-top:4px!important;gap:8px!important;color:#38556e!important;font-size:8px!important}
+#appRoot .tier-stats span+span{color:#38556e!important}
+#appRoot .tier-join{right:7px!important;min-width:53px!important;min-height:29px!important;padding:6px!important;border-radius:6px!important;background:#ffcf21!important;color:#33204b!important;border:1px solid #e6b51b!important;box-shadow:none!important;font-size:9px!important}
+#appRoot .scard,#appRoot .wsub,#appRoot .hitem,#appRoot .rrow{background:#f9fbff!important;color:#172b45!important;border:1px solid #c4d5e4!important;border-radius:9px!important;box-shadow:0 2px 7px #00385b30!important}
+#appRoot .shd{color:#193956!important}
+#appRoot .wsub{background:#edf4fa!important}
+#appRoot .rinp,#appRoot .msgbox{background:#fff!important;color:#172b45!important;border:1px solid #bdcede!important}
+#appRoot .btnp{background:#382052!important;color:#fff!important;border-radius:7px!important}
+#appRoot .btnd{background:#168b59!important;color:#fff!important;border-radius:7px!important}
+#appRoot .btnw{background:#ffcf24!important;color:#2c2041!important;border-radius:7px!important}
+#appRoot .tbtn{background:#edf3f8!important;color:#29435d!important;border-color:#c1d2e1!important}
+#appRoot .tbtn.on{background:#fff3c6!important;color:#745200!important;border-color:#e8bd28!important}
+#appRoot .bnav{background:linear-gradient(100deg,#321b50,#4b286b)!important;border-top:2px solid #e5bd35!important;padding:6px 3px!important;box-shadow:0 -4px 12px #00345155!important}
+#appRoot .nbtn{color:#c7b9d9!important;font-size:8px!important}
+#appRoot .nbtn .ni{font-size:16px!important}
+#appRoot .nbtn.on{background:transparent!important;color:#ffdb36!important}
+#appRoot .nbtn.on:before{display:none!important}
+#appRoot .gwrap{background:#f6f9fc!important;border:1px solid #c2d2e0!important;border-radius:8px!important;box-shadow:none!important}
+#appRoot .gnum{background:#e8eef4!important;color:#233c55!important;border:1px solid #c8d4df!important;border-radius:4px!important}
+#appRoot .gnum.taken{background:#f7d9dc!important;color:#a12b35!important}
+#appRoot .gnum.sel,#appRoot .gnum.optimistic-sel{background:#ffd52b!important;color:#312044!important;border-color:#e5b71d!important;box-shadow:0 0 0 1px #f0c42b!important}
+#appRoot .picker-room-head{background:#075487!important;border-bottom:1px solid #7bb5d6!important}
+#appRoot .picker-room-head strong{color:#fff!important}
+#appRoot .picker-room-head small{color:#d5edff!important}
+#appRoot .picker-back{background:#382052!important;color:#fff!important;border-color:#8d70a6!important}
+#appRoot .picker-wallet{color:#fff!important;background:#164b75!important}
+#appRoot .picker-auto{color:#fff!important}
+#appRoot .scnt{color:#ffdf42!important}
+#appRoot .qbtn{background:#ffd12d!important;color:#34234b!important;border:0!important}
+#appRoot .leg{color:#e4f4ff!important}
+#appRoot .mstr,#appRoot .cstage,#appRoot .pcard{background:#f7faff!important;color:#18334e!important;border:1px solid #bfd0df!important;box-shadow:none!important}
+#appRoot .pc{background:#e8eef4!important;color:#24415e!important;border:1px solid #c4d1dd!important}
+#appRoot .pc.fr{background:#2876c7!important;color:#fff!important}
+#appRoot .pc.mk{background:#ffcf24!important;color:#302047!important}
+#appRoot .ptop{color:#274b6b!important}
+#appRoot .cbtn{background:#ffcf24!important;color:#302047!important;box-shadow:none!important}
+#appRoot .ball{box-shadow:0 3px 8px #002b4c55!important}
+#appRoot .toast{background:#392052!important;color:#fff!important}
+#appRoot .rrow.t1{background:#fff2c9!important}
+#appRoot .irow{color:#243e59!important;border-color:#d7e1ea!important}
+@media(max-width:380px){
+ #appRoot>.hdr{padding:6px 8px!important}
+ #appRoot .tier-card{min-height:57px!important;padding:6px 68px 6px 7px!important}
+ #appRoot .tier-coin{width:29px!important;height:29px!important;flex-basis:29px!important}
+ #appRoot .tier-info strong{font-size:13px!important}
+ #appRoot .tier-join{min-width:49px!important}
+}
+
+</style>
 </head>
 <body>
 <div id="toast" class="toast"></div>
