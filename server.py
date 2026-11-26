@@ -202,6 +202,7 @@ def init_db():
       "CREATE INDEX IF NOT EXISTS idx_requests_uid_pending ON requests(uid, req_type, status, id DESC)",
       # Support phone verification/lookups and the public top-winners list.
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS apk_password_hash TEXT",
+      """CREATE TABLE IF NOT EXISTS casino_sessions (session_id TEXT PRIMARY KEY, uid BIGINT NOT NULL, game TEXT NOT NULL, stake DOUBLE PRECISION NOT NULL, state TEXT NOT NULL, status TEXT NOT NULL, created_at BIGINT NOT NULL)""",
       """CREATE TABLE IF NOT EXISTS apk_sessions (token_hash TEXT PRIMARY KEY, uid BIGINT NOT NULL, expires_at BIGINT NOT NULL, created_at BIGINT NOT NULL, last_seen BIGINT NOT NULL)""",
       "CREATE INDEX IF NOT EXISTS idx_apk_sessions_uid ON apk_sessions(uid)",
       """CREATE TABLE IF NOT EXISTS apk_login_attempts (id BIGSERIAL PRIMARY KEY, phone TEXT NOT NULL, ip TEXT NOT NULL, created_at BIGINT NOT NULL)""",
@@ -1403,6 +1404,118 @@ async def api_casino_play(req: Request, x_tg_init_data: str = Header(default='')
       add_tx(c, u['uid'], '🏆', f'{game.upper()} አሸናፊ ክፍያ ({multiplier:g}x)', payout)
     final = c.execute('SELECT play_wallet FROM users WHERE uid=?', (u['uid'],)).fetchone()
   return {'ok':True,'game':game,'result':result,'detail':detail,'stake':stake,'multiplier':multiplier,'payout':payout,'net':round(payout-stake,2),'balance':round(float(final['play_wallet'] or 0),2)}
+
+
+@app.post('/api/casino/session')
+async def api_casino_session(req: Request, x_tg_init_data: str = Header(default='')):
+  u = auth_user(x_tg_init_data)
+  b = await req.json()
+  action = str(b.get('action','')).lower()
+  sid = str(b.get('session_id','')).strip()
+  now = int(time.time())
+  rng = secrets.SystemRandom()
+  def card():
+    rank = rng.choice(['A','2','3','4','5','6','7','8','9','10','J','Q','K'])
+    suit = rng.choice(['♠','♥','♦','♣'])
+    value = 11 if rank == 'A' else (10 if rank in ('J','Q','K') else int(rank))
+    return {'rank':rank,'suit':suit,'value':value}
+  def total(cards):
+    n=sum(x['value'] for x in cards)
+    aces=sum(1 for x in cards if x['rank']=='A')
+    while n>21 and aces:
+      n-=10; aces-=1
+    return n
+  with get_db() as c:
+    c.execute('CREATE TABLE IF NOT EXISTS casino_sessions (session_id TEXT PRIMARY KEY, uid BIGINT NOT NULL, game TEXT NOT NULL, stake DOUBLE PRECISION NOT NULL, state TEXT NOT NULL, status TEXT NOT NULL, created_at BIGINT NOT NULL)')
+    if action == 'start':
+      game=str(b.get('game','')).lower()
+      if game not in ('mines','cards','aviator'):
+        raise HTTPException(400,'ይህ ጨዋታ የSession ጨዋታ አይደለም።')
+      try: stake=round(float(b.get('stake',0)),2)
+      except Exception: raise HTTPException(400,'የውርርድ መጠኑን ያረጋግጡ።')
+      if not math.isfinite(stake) or stake<1 or stake>1000: raise HTTPException(400,'1–1,000 ETB ያስገቡ።')
+      c.execute('BEGIN IMMEDIATE')
+      c.execute('SELECT uid FROM users WHERE uid=? FOR UPDATE',(u['uid'],))
+      bal=available_wallet(c,u['uid'])
+      if bal<stake: raise HTTPException(400,f'በቂ Wallet የለዎትም። {bal:.2f} ETB ብቻ አለ።')
+      sid=secrets.token_urlsafe(18)
+      if game=='mines':
+        try: count=max(1,min(10,int(b.get('mine_count',3))))
+        except Exception: count=3
+        state={'mine_count':count,'mines':rng.sample(range(25),count),'revealed':[],'multiplier':1.0}
+      elif game=='cards':
+        deck=[card() for _ in range(52)]
+        player=[deck.pop(),deck.pop()]; dealer=[deck.pop(),deck.pop()]
+        state={'deck':deck,'player':player,'dealer':dealer,'status':'playing'}
+      else:
+        # Server-side crash point and start time; the browser cannot alter either.
+        r=max(0.000001,rng.random())
+        crash=round(max(1.0,0.97/r),2)
+        state={'crash':crash,'started_at':time.time(),'status':'flying'}
+      c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)-? WHERE uid=?',(stake,u['uid']))
+      add_tx(c,u['uid'],'🎮',f'{game.upper()} ጨዋታ ውርርድ',-stake)
+      c.execute('INSERT INTO casino_sessions(session_id,uid,game,stake,state,status,created_at) VALUES(?,?,?,?,?,?,?)',(sid,u['uid'],game,stake,json.dumps(state,separators=(',',':')),'active',now))
+      balrow=c.execute('SELECT play_wallet FROM users WHERE uid=?',(u['uid'],)).fetchone()
+      if game=='mines': public={'mine_count':state['mine_count'],'revealed':[],'multiplier':1.0,'status':'active'}
+      elif game=='cards': public={'player':state['player'],'dealer':[state['dealer'][0],{'rank':'?','suit':'','value':0}],'player_total':total(player),'status':'playing'}
+      else: public={'started_at':state['started_at'],'multiplier':1.0,'status':'flying'}
+      return {'ok':True,'session_id':sid,'game':game,'state':public,'balance':round(float(balrow['play_wallet'] or 0),2)}
+    row=c.execute('SELECT * FROM casino_sessions WHERE session_id=? AND uid=? FOR UPDATE',(sid,u['uid'])).fetchone()
+    if not row: raise HTTPException(404,'የጨዋታ Session አልተገኘም።')
+    if row['status']!='active': raise HTTPException(409,'ይህ ዙር ተጠናቋል።')
+    game=row['game']; stake=float(row['stake']); state=json.loads(row['state']); payout=0.0; finished=False; message=''
+    if game=='mines':
+      if action=='reveal':
+        try: cell=int(b.get('cell',-1))
+        except Exception: cell=-1
+        if cell<0 or cell>=25 or cell in state['revealed']: raise HTTPException(400,'የተመረጠው ካሬ ትክክል አይደለም።')
+        if cell in state['mines']:
+          finished=True; message='💣 MINE! ዙሩ ተሸንፏል።'
+        else:
+          state['revealed'].append(cell)
+          safe_total=25-state['mine_count']; k=len(state['revealed'])
+          mult=0.96
+          for j in range(k): mult *= (25-j)/(safe_total-j)
+          state['multiplier']=round(mult,2)
+          message=f'💎 SAFE! {k} እንቁ ተገኝቷል።'
+          if k>=safe_total:
+            payout=round(stake*state['multiplier'],2); finished=True; message='🏆 ሁሉንም እንቁ አግኝተዋል!'
+      elif action=='cashout':
+        if not state['revealed']: raise HTTPException(400,'መጀመሪያ እንቁ ይምረጡ።')
+        payout=round(stake*float(state['multiplier']),2); finished=True; message='💰 CASH OUT!'
+      else: raise HTTPException(400,'የMines ትእዛዝ አይታወቅም።')
+      public={'mine_count':state['mine_count'],'revealed':state['revealed'],'multiplier':state['multiplier'],'status':'finished' if finished else 'active'}
+      if finished: public['mines']=state['mines']
+    elif game=='cards':
+      player=state['player']; dealer=state['dealer']; deck=state['deck']
+      if action=='hit':
+        player.append(deck.pop()); pt=total(player)
+        if pt>21: finished=True; message='BUST! 21 አልፈዋል።'
+        public={'player':player,'dealer':[dealer[0],{'rank':'?','suit':'','value':0}],'player_total':pt,'status':'finished' if finished else 'playing'}
+      elif action=='stand':
+        while total(dealer)<17 and deck: dealer.append(deck.pop())
+        pt,dt=total(player),total(dealer)
+        payout=round(stake*(2.5 if pt==21 and len(player)==2 and dt!=21 else (2.0 if pt<=21 and (dt>21 or pt>dt) else (1.0 if pt==dt else 0.0))),2)
+        finished=True; message=f'YOU {pt} · DEALER {dt}'
+        public={'player':player,'dealer':dealer,'player_total':pt,'dealer_total':dt,'status':'finished'}
+      else: raise HTTPException(400,'Hit ወይም Stand ይምረጡ።')
+      state.update({'player':player,'dealer':dealer,'deck':deck})
+    elif game=='aviator':
+      if action!='cashout': raise HTTPException(400,'Cash Out ይጫኑ።')
+      elapsed=max(0.0,time.time()-float(state['started_at']))
+      current=round(math.exp(0.085*elapsed),2)
+      if current>=float(state['crash']):
+        finished=True; message=f'💥 CRASH at {state["crash"]:.2f}x — ዙሩ ተሸንፏል።'
+      else:
+        payout=round(stake*current,2); finished=True; message=f'🚀 CASH OUT at {current:.2f}x!'
+      public={'multiplier':current,'crash':state['crash'] if finished else None,'status':'finished'}
+    else: raise HTTPException(400,'የጨዋታው አይነት አይታወቅም።')
+    if payout>0:
+      c.execute('UPDATE users SET play_wallet=COALESCE(play_wallet,0)+?, total_won=COALESCE(total_won,0)+? WHERE uid=?',(payout,payout,u['uid']))
+      add_tx(c,u['uid'],'🏆',f'{game.upper()} አሸናፊ ክፍያ',payout)
+    c.execute('UPDATE casino_sessions SET state=?,status=? WHERE session_id=?',(json.dumps(state,separators=(',',':')),'finished' if finished else 'active',sid))
+    balrow=c.execute('SELECT play_wallet FROM users WHERE uid=?',(u['uid'],)).fetchone()
+    return {'ok':True,'game':game,'session_id':sid,'state':public,'finished':finished,'message':message,'payout':payout,'balance':round(float(balrow['play_wallet'] or 0),2)}
 
 @app.post('/api/transfer')
 async def api_transfer(req: Request, x_tg_init_data: str = Header(default='')):
