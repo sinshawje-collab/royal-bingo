@@ -2013,7 +2013,6 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
   except Exception:
     pass
   return {'ok': True}
- + salt.hex() + '
 
   @bot.message_handler(commands=['admin', 'adminpanel'])
   @bot.message_handler(func=lambda m: bool(m.text) and m.text.strip().replace('👑', '').strip().lower() in ('admin panel', 'admin'))
@@ -3363,44 +3362,6 @@ async def api_wd(req: Request, x_tg_init_data: str = Header(default='')):
   except Exception:
     pass
   return {'ok': True}
- + digest.hex()
-    with get_db() as db:
-      row = db.execute('SELECT phone FROM users WHERE uid=?', (uid,)).fetchone()
-      if not row or not row['phone']:
-        return bot.send_message(m.chat.id, '❌ መጀመሪያ በBot ውስጥ የራስዎን ስልክ ቁጥር ያረጋግጡ።')
-      db.execute('UPDATE users SET apk_password_hash=? WHERE uid=?', (encoded, uid))
-    bot.send_message(m.chat.id, '✅ የAdmin APK Password ተዘጋጅቷል። አሁን በAdmin APK ላይ በተመዘገበው ስልክ ቁጥርና በዚህ Password ይግቡ።')
-
-  @bot.message_handler(commands=['admin', 'adminpanel'])
-  @bot.message_handler(func=lambda m: bool(m.text) and m.text.strip().replace('👑', '').strip().lower() in ('admin panel', 'admin'))
-  def c_admin(m):
-    uid = getattr(getattr(m, 'from_user', None), 'id', None)
-    print(f'Admin panel requested: uid={uid}, chat={getattr(getattr(m, "chat", None), "id", None)}')
-    try:
-      if not is_adm(uid):
-        return bot.reply_to(m, '⛔ ይህ መቆጣጠሪያ ለተፈቀደላቸው አድሚኖች ብቻ ነው። የTelegram ID ለማየት /myid ይጻፉ።')
-      bot.send_message(m.chat.id, '👑 ROYAL BINGO — የአድሚን መቆጣጠሪያ', reply_markup=play_kb('📱 ወደ Mini App ግባ'))
-      bot.send_message(m.chat.id, '👑 የአድሚን መቆጣጠሪያ', reply_markup=adm_kb())
-    except Exception as exc:
-      print(f'Admin panel open failed for uid={uid}: {type(exc).__name__}: {exc}')
-      try:
-        bot.send_message(m.chat.id, '❌ Admin Panel ሲከፈት ስህተት ተፈጥሯል። እባክዎ /admin እንደገና ይሞክሩ።')
-      except Exception:
-        pass
-
-  @bot.message_handler(func=lambda m: bool(m.text) and m.text.strip() == '📱 ወደ Mini App ግባ')
-  def c_admin_miniapp(m):
-    uid = getattr(getattr(m, 'from_user', None), 'id', None)
-    print(f'Admin Mini App launcher tapped: uid={uid}, chat={getattr(getattr(m, "chat", None), "id", None)}')
-    if not is_adm(uid):
-      return bot.reply_to(m, '⛔ ይህ መግቢያ ለተፈቀደላቸው አድሚኖች ብቻ ነው።')
-    # Reply-keyboard buttons send text. Respond with Telegram's supported inline Web App button.
-    return bot.send_message(
-      m.chat.id,
-      '👑 Admin Mini App ለመክፈት ከታች ያለውን 👑 Admin Mini App ክፈት ይጫኑ።',
-      reply_markup=play_kb('👑 Admin Mini App ክፈት')
-    )
-
   @bot.message_handler(commands=['start'])
   def c_start(m):
     ps = (m.text or '').split()
