@@ -1216,6 +1216,8 @@ function renderState(d) {
   var balance = Number(u.balance != null ? u.balance : (u.play_wallet || 0) + (u.win_wallet || 0));
   document.getElementById('hBal').textContent = balance.toFixed(2);
   document.getElementById('lWal').textContent = balance.toFixed(2);
+  var casinoBalanceEl = document.getElementById('casinoBalance');
+  if (casinoBalanceEl) casinoBalanceEl.textContent = balance.toFixed(2);
   document.getElementById('balanceVal').textContent = balance.toFixed(2) + ' ETB';
   // Keep the balance shown in the card-picker header synchronized on every state refresh.
   var pickerBalanceEl = document.getElementById('pickerBalance');
