@@ -17,5 +17,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="com.royalbingo.paymentreader.PaymentReaderActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:label="Royal Bingo Payment Reader" />
+        <service
+            android:name="com.royalbingo.paymentreader.PaymentNotificationListener"
+            android:label="Royal Bingo Payment Reader"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>
