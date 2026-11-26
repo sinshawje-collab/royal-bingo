@@ -56,6 +56,14 @@ public class MainActivity extends Activity {
         root.addView(readerButton, readerParams);
         setContentView(root);
 
+        webView.setFocusable(true);
+        webView.setFocusableInTouchMode(true);
+        webView.requestFocus();
+        webView.setOnTouchListener((v, event) -> {
+            v.requestFocusFromTouch();
+            return false;
+        });
+
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -86,6 +94,11 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 String script =
                     "(function(){if(window.__rbAdminShell)return;window.__rbAdminShell=true;" +
+                    "var login=document.getElementById('apkLogin');if(login&&!localStorage.getItem('royal_bingo_apk_token')){" +
+                    "var guard=document.getElementById('startupGuard');if(guard)guard.style.setProperty('display','none','important');" +
+                    "login.style.setProperty('display','flex','important');login.style.setProperty('z-index','2147483000','important');" +
+                    "login.style.setProperty('pointer-events','auto','important');login.style.setProperty('touch-action','manipulation','important');" +
+                    "login.querySelectorAll('input,button').forEach(function(el){el.style.setProperty('pointer-events','auto','important');el.style.setProperty('touch-action','manipulation','important');el.removeAttribute('disabled');});}" +
                     "var css='#appRoot{visibility:hidden!important}'+ " +
                     "'body.rb-admin-only #appRoot{visibility:visible!important}'+ " +
                     "'body.rb-admin-only #appRoot> :not(#tab-bingo):not(#financeRotationBox):not(#adminBroadcast){display:none!important}'+ " +
