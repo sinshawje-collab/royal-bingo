@@ -569,6 +569,65 @@ html,body,#appRoot{
  #appRoot .hdr{margin-left:8px!important;margin-right:8px!important}
 }
 
+
+
+/* ROYAL BINGO — 2026 flagship mobile UI pass (presentation only) */
+:root{
+ --rb-ink:#080d1b;--rb-panel:#111b31;--rb-panel-hi:#182641;
+ --rb-line:rgba(183,198,231,.15);--rb-gold:#f5c65c;--rb-gold-hi:#ffe8a2;
+ --rb-violet:#8b5cf6;--rb-cyan:#5dd8e8;
+}
+html,body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+#appRoot{isolation:isolate}
+#appRoot .hero-banner,#appRoot .royal-logo-hero{filter:drop-shadow(0 12px 24px rgba(0,0,0,.22))}
+#appRoot>.hdr{border-radius:16px!important;border-color:rgba(245,198,92,.25)!important;background:linear-gradient(110deg,rgba(18,25,48,.97),rgba(20,12,45,.97))!important}
+#appRoot .btitle{font-weight:950;letter-spacing:1.35px;text-shadow:0 2px 14px rgba(245,198,92,.15)}
+#appRoot .wchip{border-radius:13px;min-height:42px;font-variant-numeric:tabular-nums}
+#appRoot .sbox{position:relative;overflow:hidden;border-radius:16px!important;border:1px solid var(--rb-line)!important;background:linear-gradient(145deg,rgba(27,41,68,.98),rgba(13,21,39,.98))!important;box-shadow:0 9px 24px rgba(0,0,0,.19),inset 0 1px 0 rgba(255,255,255,.045)!important}
+#appRoot .sbox:after{content:"";position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,transparent,rgba(245,198,92,.55),transparent);opacity:.7}
+#appRoot .slbl{letter-spacing:1.05px;font-size:9px;color:#aebbd4}
+#appRoot .sval{font-size:clamp(14px,4vw,18px);font-weight:900;font-variant-numeric:tabular-nums}
+#appRoot .status-banner{border-radius:14px!important;background:linear-gradient(110deg,rgba(38,77,124,.22),rgba(93,216,232,.07))!important;border-color:rgba(93,216,232,.22)!important;color:#c7f5ff!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+#appRoot .status-banner.counting{background:linear-gradient(110deg,rgba(245,198,92,.2),rgba(139,92,246,.12))!important;border-color:rgba(245,198,92,.48)!important;color:#ffe8a2!important}
+#appRoot .tier-head{margin:20px 3px 12px!important;font-size:11px!important;letter-spacing:2px!important;color:#d8c9ff!important}
+#appRoot .tier-spark{width:34px!important;height:34px!important;border-radius:11px!important;background:linear-gradient(145deg,#f6d47c,#9a6ce8)!important;color:#171027!important;box-shadow:0 5px 16px rgba(139,92,246,.2)!important}
+#appRoot .tier-list{gap:12px!important}
+#appRoot .tier-card{min-height:116px!important;border-radius:18px!important;border:1px solid rgba(174,190,230,.17)!important;background:linear-gradient(135deg,rgba(28,42,69,.98),rgba(12,19,36,.99))!important;box-shadow:0 12px 26px rgba(0,0,0,.2),inset 0 1px 0 rgba(255,255,255,.055)!important;padding:14px 104px 13px 14px!important}
+#appRoot .tier-card:before{width:3px!important;background:linear-gradient(180deg,#ffe8a2,#8b5cf6)!important;opacity:.95!important}
+#appRoot .tier-card:after{content:"";position:absolute;right:-34px;top:-45px;width:120px;height:120px;border-radius:50%;border:1px solid rgba(245,198,92,.12);box-shadow:0 0 0 13px rgba(245,198,92,.025),0 0 0 28px rgba(139,92,246,.025);pointer-events:none}
+#appRoot .tier-card.active{border-color:rgba(245,198,92,.68)!important;box-shadow:0 0 0 1px rgba(245,198,92,.14),0 14px 30px rgba(0,0,0,.24),0 0 25px rgba(245,198,92,.08)!important}
+#appRoot .tier-coin{width:46px!important;height:46px!important;flex-basis:46px!important;border-radius:14px!important;background:linear-gradient(145deg,#fff0b2,#e7ad43 62%,#a9671e)!important;color:#25182b!important;box-shadow:0 7px 18px rgba(245,190,75,.2)!important}
+#appRoot .tier-info strong{font-size:20px!important;letter-spacing:.2px!important}
+#appRoot .tier-info span{color:#aebbd4!important;font-size:10px!important}
+#appRoot .tier-stats{gap:13px!important;color:#c8d5ed!important;font-size:10px!important}
+#appRoot .tier-join{right:13px!important;min-width:78px!important;min-height:42px!important;border-radius:12px!important;background:linear-gradient(125deg,#fff0ad,#e8b14a 58%,#bd7b25)!important;color:#21172a!important;box-shadow:0 7px 18px rgba(225,166,58,.18)!important;font-size:11px!important}
+#appRoot .scard,#appRoot .wsub,#appRoot .hitem,#appRoot .rrow{border:1px solid var(--rb-line)!important;background:linear-gradient(145deg,rgba(24,37,62,.98),rgba(13,21,39,.98))!important;border-radius:17px!important}
+#appRoot .shd{font-size:14px;letter-spacing:.1px}
+#appRoot .wact button,#appRoot .btnp,#appRoot .btnd,#appRoot .btnw{border-radius:13px!important;min-height:44px;font-weight:850;letter-spacing:.1px}
+#appRoot .bnav{padding-top:8px!important;box-shadow:0 -12px 30px rgba(0,0,0,.24)!important}
+#appRoot .nbtn{position:relative;letter-spacing:.1px}
+#appRoot .nbtn.on:before{content:"";position:absolute;top:-8px;left:28%;right:28%;height:2px;border-radius:2px;background:linear-gradient(90deg,#8b5cf6,#ffe08a);box-shadow:0 0 12px rgba(245,198,92,.4)}
+#appRoot .nbtn.on{background:linear-gradient(145deg,rgba(245,198,92,.12),rgba(139,92,246,.12))!important}
+#cardPicker .picker-room-head{margin:0 -2px 8px;padding:11px 5px 13px;background:linear-gradient(180deg,#0b1021 80%,rgba(11,16,33,.94))!important;border-bottom:1px solid rgba(245,198,92,.14)}
+#cardPicker .picker-back{border-radius:12px!important;background:linear-gradient(145deg,#202c49,#111a30)!important;border-color:rgba(245,198,92,.28)!important}
+#cardPicker .picker-room-head strong{font-size:16px!important;letter-spacing:.3px}
+#cardPicker .picker-wallet{padding:7px 10px;border:1px solid rgba(93,216,232,.2);border-radius:11px;background:rgba(93,216,232,.07)}
+#cardPicker .gwrap{border-radius:16px!important;border:1px solid rgba(174,190,230,.15)!important;background:linear-gradient(145deg,#111c32,#0b1426)!important}
+#cardPicker .gnum{border-radius:8px!important;border-color:rgba(174,190,230,.13)!important;background:linear-gradient(145deg,#1b2943,#121d33)!important}
+#cardPicker .gnum.sel,#cardPicker .gnum.optimistic-sel{background:linear-gradient(135deg,#fff0a6,#f2bf51 58%,#c98220)!important;color:#171326!important;border-color:#fff0a6!important}
+#appRoot .toast{border-radius:13px!important;border-color:rgba(245,198,92,.45)!important;background:rgba(13,19,37,.96)!important}
+@media(max-width:380px){
+ #appRoot .tier-card{min-height:108px!important;padding:12px 92px 11px 11px!important}
+ #appRoot .tier-coin{width:42px!important;height:42px!important;flex-basis:42px!important}
+ #appRoot .tier-info strong{font-size:18px!important}
+ #appRoot .tier-stats{gap:8px!important;font-size:9px!important}
+ #appRoot .tier-join{right:9px!important;min-width:72px!important}
+}
+@media(prefers-reduced-motion:no-preference){
+ #appRoot .tier-card,#appRoot .tier-join,#appRoot .nbtn{transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease,filter .18s ease}
+ #appRoot .tier-card:active{transform:scale(.992)}
+}
+
 </style>
 </head>
 <body>
