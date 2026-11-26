@@ -98,7 +98,7 @@ public class MainActivity extends Activity {
                     "var p=box.querySelector('p');if(p&&p.textContent.indexOf('Standalone APK')>=0)p.textContent='ADMIN CONTROL CENTER · SECURE LOGIN';" +
                     "var labels=box.querySelectorAll('label');if(labels.length)labels[0].textContent='Admin ስልክ ቁጥር';" +
                     "var btn=box.querySelector('button');if(btn)btn.textContent='🔐  ADMIN LOGIN';" +
-                    "var help=box.querySelector('p:last-child');if(help)help.textContent='የተፈቀደ Admin መለያ ብቻ ይጠቀሙ።';}" +
+                    "var help=box.querySelector('p:last-child');if(help)help.textContent='Password ከBot ውስጥ /setadminpassword በመጠቀም ያዘጋጁ።';}" +
                     "var verified=false,checking=false;" +
                     "async function verifyAdmin(){if(verified||checking)return;var login=document.getElementById('apkLogin');" +
                     "if(login&&getComputedStyle(login).display!=='none')return;" +
