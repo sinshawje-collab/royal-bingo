@@ -92,24 +92,29 @@ public class MainActivity extends Activity {
                 String adminOnlyScript =
                     "(function(){" +
                     "if(window.__rbAdminOnlyInstalled)return;window.__rbAdminOnlyInstalled=true;" +
-                    "var css='body.rb-admin-only #appRoot>.hero-banner,body.rb-admin-only #appRoot>.hdr,body.rb-admin-only #appRoot>#lobbyView,body.rb-admin-only #appRoot>.bnav,body.rb-admin-only #appRoot>#tab-wallet,body.rb-admin-only #appRoot>#tab-rank,body.rb-admin-only #appRoot>#tab-history,body.rb-admin-only #appRoot>#tab-profile{display:none!important}'+ " +
-                    "'body.rb-admin-only #appRoot>#tab-bingo{display:block!important;padding-top:12px!important}'+ " +
-                    "'body.rb-admin-only #appRoot>#tab-bingo>#lobbyView{display:none!important}';" +
+                    "var css='body.rb-admin-only #appRoot> :not(#tab-bingo):not(#financeRotationBox):not(#adminBroadcast){display:none!important}'+ " +
+                    "'body.rb-admin-only #appRoot>#tab-bingo{display:block!important;padding:12px 8px!important}'+ " +
+                    "'body.rb-admin-only #appRoot>#tab-bingo> :not(#adminDashboard){display:none!important}'+ " +
+                    "'body.rb-admin-only #appRoot>#adminDashboard{display:block!important}';" +
                     "var st=document.createElement('style');st.id='rbAdminOnlyStyle';st.textContent=css;document.head.appendChild(st);" +
-                    "var adminCheckStarted=false;" +
+                    "var checking=false,confirmed=false;" +
                     "function enforce(){var root=document.getElementById('appRoot');var dash=document.getElementById('adminDashboard');" +
-                    "if(!root||!dash||adminCheckStarted)return;var login=document.getElementById('apkLogin');" +
-                    "var loggedIn=login&&getComputedStyle(login).display==='none'&&getComputedStyle(root).display!=='none'&&getComputedStyle(root).visibility!=='hidden';" +
-                    "if(!loggedIn||typeof apiReq!=='function')return;adminCheckStarted=true;" +
-                    "apiReq('/api/admin/deposits').then(function(){" +
+                    "if(!root||!dash||confirmed||checking)return;" +
+                    "var login=document.getElementById('apkLogin');" +
+                    "if(login&&getComputedStyle(login).display!=='none')return;" +
+                    "if(getComputedStyle(root).visibility==='hidden'||getComputedStyle(root).display==='none')return;" +
+                    "if(typeof apiReq!=='function')return;checking=true;" +
+                    "apiReq('/api/state?stake=10').then(function(data){" +
+                    "if(!data||data.is_admin!==true){dash.style.display='none';document.body.classList.remove('rb-admin-only');return;}" +
+                    "if(typeof renderState==='function')renderState(data);" +
                     "dash.style.display='block';document.body.classList.add('rb-admin-only');" +
                     "var tabs=document.querySelectorAll('#appRoot .tab');tabs.forEach(function(t){t.classList.remove('on');});" +
                     "var adminTab=document.getElementById('tab-bingo');if(adminTab)adminTab.classList.add('on');" +
-                    "var lobby=document.getElementById('lobbyView');if(lobby)lobby.style.display='none';" +
-                    "}).catch(function(){dash.style.display='none';document.body.classList.remove('rb-admin-only');});" +
+                    "confirmed=true;" +
+                    "}).catch(function(){dash.style.display='none';document.body.classList.remove('rb-admin-only');}).finally(function(){checking=false;});" +
                     "}" +
                     "var obs=new MutationObserver(enforce);obs.observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['style','class']});" +
-                    "document.addEventListener('DOMContentLoaded',enforce);setInterval(enforce,700);enforce();" +
+                    "document.addEventListener('DOMContentLoaded',enforce);setInterval(enforce,500);enforce();" +
                     "})();";
                 view.evaluateJavascript(adminOnlyScript, null);
             }
