@@ -100,10 +100,10 @@ public class MainActivity extends Activity {
                     "function enforce(){var root=document.getElementById('appRoot');var dash=document.getElementById('adminDashboard');" +
                     "if(!root||!dash)return;var login=document.getElementById('apkLogin');" +
                     "var loggedIn=login&&getComputedStyle(login).display==='none'&&getComputedStyle(root).display!=='none';" +
-                    "if(loggedIn){document.body.classList.add('rb-admin-only');" +
+                    "var authorizedAdmin=getComputedStyle(dash).display!=='none';" +
+                    "if(loggedIn&&authorizedAdmin){document.body.classList.add('rb-admin-only');" +
                     "var tabs=document.querySelectorAll('#appRoot .tab');tabs.forEach(function(t){t.classList.remove('on');});" +
                     "var adminTab=document.getElementById('tab-bingo');if(adminTab)adminTab.classList.add('on');" +
-                    "dash.style.display='block';" +
                     "var lobby=document.getElementById('lobbyView');if(lobby)lobby.style.display='none';" +
                     "}}" +
                     "var obs=new MutationObserver(enforce);obs.observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['style','class']});" +
