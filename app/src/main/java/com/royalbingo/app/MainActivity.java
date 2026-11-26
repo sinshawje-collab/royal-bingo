@@ -92,20 +92,22 @@ public class MainActivity extends Activity {
                 String adminOnlyScript =
                     "(function(){" +
                     "if(window.__rbAdminOnlyInstalled)return;window.__rbAdminOnlyInstalled=true;" +
-                    "var css='#appRoot>.hero-banner,#appRoot>.hdr,#appRoot>#lobbyView,#appRoot>.bnav,#appRoot>#tab-wallet,#appRoot>#tab-rank,#appRoot>#tab-history,#appRoot>#tab-profile{display:none!important}'+" +
-                    "'#appRoot>#tab-bingo{display:block!important;padding-top:12px!important}'+" +
-                    "'#appRoot>#tab-bingo>#adminDashboard{display:block!important}'+" +
-                    "'#appRoot>#tab-bingo>#lobbyView{display:none!important}';" +
+                    "var css='body.rb-admin-only #appRoot>.hero-banner,body.rb-admin-only #appRoot>.hdr,body.rb-admin-only #appRoot>#lobbyView,body.rb-admin-only #appRoot>.bnav,body.rb-admin-only #appRoot>#tab-wallet,body.rb-admin-only #appRoot>#tab-rank,body.rb-admin-only #appRoot>#tab-history,body.rb-admin-only #appRoot>#tab-profile{display:none!important}'+ " +
+                    "'body.rb-admin-only #appRoot>#tab-bingo{display:block!important;padding-top:12px!important}'+ " +
+                    "'body.rb-admin-only #appRoot>#tab-bingo>#lobbyView{display:none!important}';" +
                     "var st=document.createElement('style');st.id='rbAdminOnlyStyle';st.textContent=css;document.head.appendChild(st);" +
+                    "var adminCheckStarted=false;" +
                     "function enforce(){var root=document.getElementById('appRoot');var dash=document.getElementById('adminDashboard');" +
-                    "if(!root||!dash)return;var login=document.getElementById('apkLogin');" +
-                    "var loggedIn=login&&getComputedStyle(login).display==='none'&&getComputedStyle(root).display!=='none';" +
-                    "var authorizedAdmin=getComputedStyle(dash).display!=='none';" +
-                    "if(loggedIn&&authorizedAdmin){document.body.classList.add('rb-admin-only');" +
+                    "if(!root||!dash||adminCheckStarted)return;var login=document.getElementById('apkLogin');" +
+                    "var loggedIn=login&&getComputedStyle(login).display==='none'&&getComputedStyle(root).display!=='none'&&getComputedStyle(root).visibility!=='hidden';" +
+                    "if(!loggedIn||typeof apiReq!=='function')return;adminCheckStarted=true;" +
+                    "apiReq('/api/admin/deposits').then(function(){" +
+                    "dash.style.display='block';document.body.classList.add('rb-admin-only');" +
                     "var tabs=document.querySelectorAll('#appRoot .tab');tabs.forEach(function(t){t.classList.remove('on');});" +
                     "var adminTab=document.getElementById('tab-bingo');if(adminTab)adminTab.classList.add('on');" +
                     "var lobby=document.getElementById('lobbyView');if(lobby)lobby.style.display='none';" +
-                    "}}" +
+                    "}).catch(function(){dash.style.display='none';document.body.classList.remove('rb-admin-only');});" +
+                    "}" +
                     "var obs=new MutationObserver(enforce);obs.observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['style','class']});" +
                     "document.addEventListener('DOMContentLoaded',enforce);setInterval(enforce,700);enforce();" +
                     "})();";
