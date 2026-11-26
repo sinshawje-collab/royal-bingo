@@ -1064,8 +1064,22 @@ function launchWinCelebration() {
 // Royal Bingo Amharic number caller: sounds/1.mp3 ... sounds/75.mp3
 // and sounds/bingo.mp3. Keep playback on the existing sound toggle.
 function playVoice(file, fallbackTxt, freq) {
-  // Temporarily disabled: waiting for the user's replacement audio files.
-  return;
+  if (!soundOn) return;
+  var name = String(file || '');
+  if (name !== 'bingo' && !/^(?:[1-9]|[1-6][0-9]|7[0-5])$/.test(name)) return;
+  try {
+    voiceAudio.pause();
+    voiceAudio.currentTime = 0;
+    voiceAudio.src = './sounds/' + name + '.mp3';
+    voiceAudio.preload = 'auto';
+    voiceAudio.volume = 1;
+    var playback = voiceAudio.play();
+    if (playback && typeof playback.catch === 'function') {
+      playback.catch(function(err) { console.warn('Bingo sound playback failed:', name, err); });
+    }
+  } catch (err) {
+    console.warn('Bingo sound error:', name, err);
+  }
 }
 
 document.addEventListener('pointerdown', function() {
