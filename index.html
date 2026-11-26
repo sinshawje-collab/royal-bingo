@@ -1061,10 +1061,27 @@ function launchWinCelebration() {
   setTimeout(function() { layer.classList.remove('on'); layer.innerHTML = ''; }, 5500);
 }
 
-// Original number-caller audio is intentionally disabled.
- // Add the new approved audio files and playback mapping here later.
+// Royal Bingo Amharic number caller: sounds/1.mp3 ... sounds/75.mp3
+// and sounds/bingo.mp3. Keep playback on the existing sound toggle.
 function playVoice(file, fallbackTxt, freq) {
-  return;
+  if (!soundOn) return;
+  var name = String(file || '').trim().toLowerCase();
+  if (name !== 'bingo' && !/^(?:[1-9]|[1-6][0-9]|7[0-5])$/.test(name)) return;
+  try {
+    voiceAudio.pause();
+    voiceAudio.currentTime = 0;
+    voiceAudio.src = 'sounds/' + name + '.mp3';
+    voiceAudio.preload = 'auto';
+    voiceAudio.volume = 1;
+    var playback = voiceAudio.play();
+    if (playback && typeof playback.catch === 'function') {
+      playback.catch(function(err) {
+        console.warn('Royal Bingo sound playback failed:', name, err);
+      });
+    }
+  } catch (err) {
+    console.warn('Royal Bingo sound error:', err);
+  }
 }
 
 document.addEventListener('pointerdown', function() {
@@ -1777,7 +1794,7 @@ function toggleSound() {
   document.getElementById('sndBtn').textContent = soundOn ? '🔊' : '🔇';
   if (soundOn) {
     ensureAudioUnlocked();
-    speakText('ድምፅ በርቷል', 740);
+    toast('ድምፅ በርቷል 🔊');
   } else {
     toast('ድምፅ ጠፍቷል 🔇');
   }
