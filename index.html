@@ -1828,66 +1828,97 @@ function toggleAuto() {
   b.classList.toggle('off', !autoMark);
   if (latestState) renderState(latestState);
 }
+
 var activeCasinoGame='';
+var activeCasinoSession='';
+var casinoAviatorTimer=null;
 var casinoGameNames={slots:'ROYAL SLOTS',aviator:'AVIATOR',keno:'ROYAL KENO',plinko:'PLINKO',roulette:'ROULETTE',dice:'LUCKY DICE',coin:'COIN FLIP',wheel:'LUCKY WHEEL',mines:'GEM HUNT',cards:'BLACKJACK',scratch:'LUCKY SCRATCH',hilo:'HI-LO',baccarat:'BACCARAT',poker:'VIDEO POKER',tower:'TOWER CLIMB',sicbo:'SIC BO',dragon:'DRAGON TIGER',limbo:'LIMBO',kenoquick:'QUICK KENO',scratch2:'GOLDEN TICKET'};
 var casinoGameIcons={slots:'🎰',aviator:'✈️',keno:'🔢',plinko:'🔻',roulette:'🎡',dice:'🎲',coin:'🪙',wheel:'🎯',mines:'💎',cards:'🃏',scratch:'🎟️',hilo:'📈',baccarat:'♠️',poker:'🂡',tower:'🗼',sicbo:'🎲',dragon:'🐉',limbo:'🚀',kenoquick:'🎱',scratch2:'🎫'};
 function casinoChoiceOptions(id){
- var opts={
-  roulette:[['red','RED'],['black','BLACK'],['odd','ODD'],['even','EVEN']],
-  coin:[['heads','HEADS'],['tails','TAILS']],
-  dice:[['high','HIGH (8–12)'],['low','LOW (2–6)'],['seven','SEVEN']],
-  sicbo:[['high','HIGH (11–18)'],['low','LOW (3–10)'],['seven','SEVEN']],
-  hilo:[['higher','HIGHER'],['lower','LOWER']],
-  baccarat:[['player','PLAYER'],['banker','BANKER']],
-  dragon:[['dragon','DRAGON'],['tiger','TIGER']]
- };
+ var opts={roulette:[['red','RED'],['black','BLACK'],['green','GREEN'],['odd','ODD'],['even','EVEN']],coin:[['heads','HEADS'],['tails','TAILS']],dice:[['high','HIGH (8–12)'],['low','LOW (2–6)'],['seven','SEVEN']],sicbo:[['high','HIGH (11–18)'],['low','LOW (3–10)'],['seven','SEVEN']],hilo:[['higher','HIGHER'],['lower','LOWER']],baccarat:[['player','PLAYER'],['banker','BANKER'],['tie','TIE']],dragon:[['dragon','DRAGON'],['tiger','TIGER']]};
  return opts[id]||[];
 }
+function casinoUpdateBalance(b){var a=document.getElementById('balanceVal');if(a)a.textContent=Number(b).toFixed(2)+' ETB';var h=document.getElementById('hBal');if(h)h.textContent=Number(b).toFixed(2);var p=document.getElementById('pickerBalance');if(p)p.textContent=Number(b).toFixed(2);}
+async function casinoSession(action,extra){
+ var body=Object.assign({action:action,session_id:activeCasinoSession},extra||{});
+ return await apiReq('/api/casino/session','POST',body);
+}
+function casinoRenderMines(state){
+ var stage=document.getElementById('casinoGameStage'), mines=state.mines||[];
+ var cells='';
+ for(var i=0;i<25;i++){var safe=state.revealed.indexOf(i)>=0, mine=mines.indexOf(i)>=0&&state.status==='finished';cells+='<button '+(safe||mine||state.status==='finished'?'disabled':'')+' onclick="casinoMinePick('+i+')" style="height:48px;border-radius:9px;border:1px solid #a88743;background:'+(safe?'#175f43':mine?'#792f35':'#272139')+';color:white;font-size:21px">'+(safe?'💎':mine?'💣':'?')+'</button>';}
+ stage.innerHTML='<div style="font-size:13px;margin-bottom:8px">💎 SAFE: '+state.revealed.length+' · MULTIPLIER: '+Number(state.multiplier).toFixed(2)+'x</div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7px">'+cells+'</div>';
+ document.getElementById('casinoPlayBtn').style.display=state.status==='active'&&state.revealed.length?'block':'none';
+ document.getElementById('casinoPlayBtn').disabled=state.status!=='active'||!state.revealed.length;
+ document.getElementById('casinoPlayBtn').textContent='💰 CASH OUT';
+}
+async function casinoMinePick(cell){
+ try{var r=await casinoSession('reveal',{cell:cell});casinoRenderMines(r.state);casinoUpdateBalance(r.balance);document.getElementById('casinoGameResult').textContent=r.message;if(r.finished){document.getElementById('casinoPlayBtn').style.display='none';toast(r.message+' · '+Number(r.payout).toFixed(2)+' ETB');}}
+ catch(e){toast('❌ '+e.message);}
+}
+function casinoRenderCards(state){
+ var stage=document.getElementById('casinoGameStage');
+ stage.innerHTML='<div style="font-weight:bold;margin-bottom:8px">YOU ('+state.player_total+')</div><div style="display:flex;gap:7px;justify-content:center;flex-wrap:wrap">'+state.player.map(function(c){return '<div style="background:#fff;color:'+(c.suit==='♥'||c.suit==='♦'?'#c22':'#222')+';border-radius:9px;padding:12px 9px;min-width:43px;font-size:19px">'+c.rank+c.suit+'</div>';}).join('')+'</div><div style="margin:15px 0 6px">DEALER'+(state.dealer_total?' ('+state.dealer_total+')':'')+'</div><div style="display:flex;gap:7px;justify-content:center;flex-wrap:wrap">'+state.dealer.map(function(c){return '<div style="background:#fff;color:#222;border-radius:9px;padding:12px 9px;min-width:43px;font-size:19px">'+(c.rank==='?'?'🂠':c.rank+c.suit)+'</div>';}).join('')+'</div>';
+ var b=document.getElementById('casinoPlayBtn');b.style.display=state.status==='playing'?'block':'none';b.textContent='STAND';b.disabled=state.status!=='playing';
+ var hit=document.getElementById('casinoHitBtn');if(hit)hit.style.display=state.status==='playing'?'block':'none';
+}
+async function casinoCardsAction(action){
+ try{var r=await casinoSession(action);casinoRenderCards(r.state);casinoUpdateBalance(r.balance);document.getElementById('casinoGameResult').textContent=r.message||'Your move';if(r.finished){document.getElementById('casinoHitBtn').style.display='none';document.getElementById('casinoPlayBtn').style.display='none';toast(r.message+' · '+Number(r.payout).toFixed(2)+' ETB');}}
+ catch(e){toast('❌ '+e.message);}
+}
 function openCasinoGame(id){
- activeCasinoGame=id;
+ if(casinoAviatorTimer){clearInterval(casinoAviatorTimer);casinoAviatorTimer=null;}
+ activeCasinoGame=id;activeCasinoSession='';
+ var panel=document.getElementById('casinoGamePanel'),stage=document.getElementById('casinoGameStage'),btn=document.getElementById('casinoPlayBtn');
  document.getElementById('casinoGameTitle').textContent='👑 '+casinoGameNames[id];
- var opts=casinoChoiceOptions(id), choice=opts.length?'<label style="display:block;text-align:left;font-size:12px;margin:8px 0 4px;color:#d7c49b">YOUR PICK</label><select id="casinoChoice" style="width:100%;padding:11px;border-radius:10px;background:#171321;color:white;border:1px solid #8d743b">'+opts.map(function(o){return '<option value="'+o[0]+'">'+o[1]+'</option>';}).join('')+'</select>':'';
+ btn.style.display='block';btn.disabled=false;btn.textContent='▶ START GAME';btn.onclick=playCasinoDemo;
+ var opts=casinoChoiceOptions(id),choice=opts.length?'<label style="display:block;text-align:left;font-size:12px;margin:8px 0 4px;color:#d7c49b">YOUR PICK</label><select id="casinoChoice" style="width:100%;padding:11px;border-radius:10px;background:#171321;color:white;border:1px solid #8d743b">'+opts.map(function(o){return '<option value="'+o[0]+'">'+o[1]+'</option>';}).join('')+'</select>':'';
  var extra='';
- if(id==='aviator'||id==='limbo')extra='<label style="display:block;text-align:left;font-size:12px;margin:8px 0 4px;color:#d7c49b">TARGET MULTIPLIER</label><input id="casinoTarget" type="number" min="1.1" max="10" step=".1" value="2" style="width:100%;padding:11px;border-radius:10px;background:#171321;color:white;border:1px solid #8d743b">';
- if(id==='keno'||id==='kenoquick')extra='<label style="display:block;text-align:left;font-size:12px;margin:8px 0 4px;color:#d7c49b">PICK 1–10 NUMBERS (1–40, comma separated)</label><input id="casinoNumbers" value="3,7,11,18,25" style="width:100%;padding:11px;border-radius:10px;background:#171321;color:white;border:1px solid #8d743b">';
- if(id==='mines')extra='<label style="display:block;text-align:left;font-size:12px;margin:8px 0 4px;color:#d7c49b">GEMS TO FIND (1–5)</label><input id="casinoGems" type="number" min="1" max="5" value="2" style="width:100%;padding:11px;border-radius:10px;background:#171321;color:white;border:1px solid #8d743b">';
- if(id==='tower')extra='<label style="display:block;text-align:left;font-size:12px;margin:8px 0 4px;color:#d7c49b">FLOORS (1–5)</label><input id="casinoSteps" type="number" min="1" max="5" value="2" style="width:100%;padding:11px;border-radius:10px;background:#171321;color:white;border:1px solid #8d743b">';
- document.getElementById('casinoGameStage').innerHTML='<div style="font-size:46px">'+casinoGameIcons[id]+'</div><p>'+casinoGameNames[id]+'</p><div style="max-width:360px;margin:12px auto;text-align:left">'+choice+extra+'<label style="display:block;text-align:left;font-size:12px;margin:10px 0 4px;color:#d7c49b">BET AMOUNT (ETB)</label><input id="casinoStake" type="number" min="1" max="1000" step=".01" value="10" style="width:100%;padding:12px;border-radius:10px;background:#171321;color:white;border:1px solid #8d743b"></div>';
- document.getElementById('casinoGameResult').textContent='የውርርድ መጠንና ምርጫዎን ያስገቡ።';
- document.getElementById('casinoPlayBtn').disabled=false;
- document.getElementById('casinoPlayBtn').textContent='▶ PLAY · ETB WALLET';
- document.getElementById('casinoGamePanel').scrollIntoView({behavior:'smooth',block:'nearest'});
+ if(id==='keno'||id==='kenoquick')extra='<label>PICK 1–10 NUMBERS (1–40)</label><input id="casinoNumbers" value="3,7,11,18,25" style="width:100%;padding:11px;background:#171321;color:white">';
+ if(id==='tower')extra='<label>FLOORS (1–5)</label><input id="casinoSteps" type="number" min="1" max="5" value="2" style="width:100%;padding:11px;background:#171321;color:white">';
+ if(id==='aviator'||id==='limbo')extra='<label>TARGET MULTIPLIER</label><input id="casinoTarget" type="number" min="1.1" max="10" step=".1" value="2" style="width:100%;padding:11px;background:#171321;color:white">';
+ if(id==='mines')extra='<label>MINES (1–10)</label><input id="casinoMines" type="number" min="1" max="10" value="3" style="width:100%;padding:11px;background:#171321;color:white">';
+ stage.innerHTML='<div style="font-size:46px">'+casinoGameIcons[id]+'</div><p>'+casinoGameNames[id]+'</p><div style="max-width:360px;margin:12px auto;text-align:left">'+choice+extra+'<label style="display:block;margin:10px 0 4px">BET AMOUNT (ETB)</label><input id="casinoStake" type="number" min="1" max="1000" step=".01" value="10" style="width:100%;padding:12px;border-radius:10px;background:#171321;color:white;border:1px solid #8d743b"></div>';
+ document.getElementById('casinoGameResult').textContent='ውርርድ መጠን ያስገቡና START GAME ይጫኑ።';
+ var old=document.getElementById('casinoHitBtn');if(old)old.remove();
+ if(id==='cards'){var hit=document.createElement('button');hit.id='casinoHitBtn';hit.textContent='HIT';hit.style.cssText='display:none;width:48%;margin:6px 1%;padding:13px;background:#a8792b;color:white;border:0;border-radius:10px';hit.onclick=function(){casinoCardsAction('hit')};btn.parentNode.insertBefore(hit,btn);}
+ if(id==='aviator'||id==='mines'||id==='cards'){btn.onclick=playCasinoDemo;}
+ panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
-function closeCasinoGame(){
- activeCasinoGame='';
- document.getElementById('casinoGameTitle').textContent='👑 Choose a game';
- document.getElementById('casinoGameStage').innerHTML='<div style="font-size:42px">🎮</div><p>ጨዋታ ይምረጡ።</p>';
- document.getElementById('casinoGameResult').textContent='ጨዋታ ይምረጡ።';
- document.getElementById('casinoPlayBtn').disabled=true;
- document.getElementById('casinoPlayBtn').textContent='▶ PLAY';
-}
+function closeCasinoGame(){if(casinoAviatorTimer){clearInterval(casinoAviatorTimer);casinoAviatorTimer=null;}activeCasinoGame='';activeCasinoSession='';document.getElementById('casinoGameTitle').textContent='👑 Choose a game';document.getElementById('casinoGameStage').innerHTML='🎮<p>ጨዋታ ይምረጡ።</p>';document.getElementById('casinoGameResult').textContent='ጨዋታ ይምረጡ።';var b=document.getElementById('casinoPlayBtn');b.disabled=true;b.textContent='▶ PLAY';b.onclick=playCasinoDemo;var h=document.getElementById('casinoHitBtn');if(h)h.style.display='none';}
 async function playCasinoDemo(){
  if(!activeCasinoGame)return;
- var btn=document.getElementById('casinoPlayBtn'), stake=Number(document.getElementById('casinoStake').value);
- var body={game:activeCasinoGame,stake:stake};
- var c=document.getElementById('casinoChoice'), n=document.getElementById('casinoNumbers'),t=document.getElementById('casinoTarget'),g=document.getElementById('casinoGems'),f=document.getElementById('casinoSteps');
- if(c)body.choice=c.value;
- if(n)body.numbers=n.value.split(',').map(function(x){return Number(x.trim());});
- if(t)body.target=Number(t.value);
- if(g)body.gems=Number(g.value);
- if(f)body.steps=Number(f.value);
+ var btn=document.getElementById('casinoPlayBtn'),stake=Number(document.getElementById('casinoStake').value);
  if(!Number.isFinite(stake)||stake<1||stake>1000){toast('1–1,000 ETB ያስገቡ።');return;}
- btn.disabled=true;btn.textContent='⏳ PLAYING...';
+ btn.disabled=true;btn.textContent='⏳ STARTING...';
  try{
+  if(['aviator','mines','cards'].indexOf(activeCasinoGame)>=0){
+   var extras={game:activeCasinoGame,stake:stake};
+   var mc=document.getElementById('casinoMines');if(mc)extras.mine_count=Number(mc.value);
+   var r=await apiReq('/api/casino/session','POST',Object.assign({action:'start'},extras));
+   activeCasinoSession=r.session_id;casinoUpdateBalance(r.balance);
+   if(activeCasinoGame==='mines'){casinoRenderMines(r.state);btn.onclick=function(){casinoMineCashout()};}
+   else if(activeCasinoGame==='cards'){casinoRenderCards(r.state);btn.onclick=function(){casinoCardsAction('stand')};}
+   else{
+    btn.textContent='💰 CASH OUT';btn.disabled=false;btn.onclick=function(){casinoAviatorCashout()};
+    document.getElementById('casinoGameStage').innerHTML='<div id="aviatorPlane" style="font-size:60px;transition:transform .2s">✈️</div><div id="aviatorMultiplier" style="font-size:42px;font-weight:900;color:#55e39a">1.00x</div><p>FLIGHT IN PROGRESS</p>';
+    var started=Date.now();casinoAviatorTimer=setInterval(function(){var m=Math.exp(.085*(Date.now()-started)/1000);var el=document.getElementById('aviatorMultiplier'),pl=document.getElementById('aviatorPlane');if(el)el.textContent=m.toFixed(2)+'x';if(pl)pl.style.transform='translate('+Math.min(100,(m-1)*18)+'px,-'+Math.min(75,(m-1)*12)+'px)';},100);
+   }
+   document.getElementById('casinoGameResult').textContent='ጨዋታው ተጀምሯል። በጥንቃቄ ይጫወቱ።';
+   return;
+  }
+  var body={game:activeCasinoGame,stake:stake},c=document.getElementById('casinoChoice'),n=document.getElementById('casinoNumbers'),t=document.getElementById('casinoTarget'),f=document.getElementById('casinoSteps');
+  if(c)body.choice=c.value;if(n)body.numbers=n.value.split(',').map(function(x){return Number(x.trim())});if(t)body.target=Number(t.value);if(f)body.steps=Number(f.value);
   var res=await apiReq('/api/casino/play','POST',body);
-  document.getElementById('casinoGameResult').textContent=res.result+' · '+(res.payout>0?'PAYOUT '+res.payout.toFixed(2)+' ETB':'NO WIN')+' · '+res.multiplier.toFixed(2)+'x';
-  var bal=document.getElementById('balanceVal');if(bal)bal.textContent=res.balance.toFixed(2)+' ETB';
-  var h=document.getElementById('hBal');if(h)h.textContent=res.balance.toFixed(2);
-  var p=document.getElementById('pickerBalance');if(p)p.textContent=res.balance.toFixed(2);
-  toast(res.payout>0?'🏆 '+res.payout.toFixed(2)+' ETB ተመልሷል':'ጨዋታው ተጠናቋል።');
+  var resultEl=document.getElementById('casinoGameResult');resultEl.textContent=res.result+' · '+(res.payout>0?'PAYOUT '+res.payout.toFixed(2)+' ETB':'NO WIN')+' · '+res.multiplier.toFixed(2)+'x';
+  var stage=document.getElementById('casinoGameStage');stage.innerHTML='<div style="font-size:56px;animation:casinoPop .6s ease">'+(casinoGameIcons[activeCasinoGame]||'🎮')+'</div><div style="font-size:23px;font-weight:900;margin:10px">'+res.result+'</div><div style="font-size:28px;color:'+(res.payout>0?'#55e39a':'#ff7777')+'">'+res.multiplier.toFixed(2)+'x</div>';
+  casinoUpdateBalance(res.balance);toast(res.payout>0?'🏆 '+res.payout.toFixed(2)+' ETB ተመልሷል':'ጨዋታው ተጠናቋል።');
  }catch(e){document.getElementById('casinoGameResult').textContent='❌ '+e.message;toast('❌ '+e.message);}
- finally{btn.disabled=false;btn.textContent='▶ PLAY AGAIN · ETB WALLET';}
+ finally{btn.disabled=false;if(!activeCasinoSession)btn.textContent='▶ PLAY AGAIN · ETB WALLET';}
 }
+async function casinoMineCashout(){var b=document.getElementById('casinoPlayBtn');b.disabled=true;try{var r=await casinoSession('cashout');casinoRenderMines(r.state);casinoUpdateBalance(r.balance);document.getElementById('casinoGameResult').textContent=r.message+' · '+Number(r.payout).toFixed(2)+' ETB';b.style.display='none';toast(r.message);}catch(e){b.disabled=false;toast('❌ '+e.message);}}
+async function casinoAviatorCashout(){var b=document.getElementById('casinoPlayBtn');b.disabled=true;if(casinoAviatorTimer){clearInterval(casinoAviatorTimer);casinoAviatorTimer=null;}try{var r=await casinoSession('cashout');casinoUpdateBalance(r.balance);document.getElementById('casinoGameResult').textContent=r.message+' · '+Number(r.payout).toFixed(2)+' ETB';document.getElementById('aviatorMultiplier').textContent=Number(r.state.multiplier).toFixed(2)+'x';b.style.display='none';toast(r.message);}catch(e){b.disabled=false;toast('❌ '+e.message);}}
+
 function goTab(t) {
   document.querySelectorAll('.tab').forEach(function(e) { e.classList.remove('on'); });
   document.querySelectorAll('.nbtn').forEach(function(e) { e.classList.remove('on'); });
