@@ -135,7 +135,7 @@ body.light .status-banner{color:#1d4ed8}
 .tbtn{padding:11px;border-radius:11px;border:1px solid var(--bd);background:var(--card2);color:var(--txt);font-size:13px;font-weight:700;cursor:pointer}
 .tbtn.on{border-color:var(--gold);background:rgba(245,158,11,.16);color:var(--gold2)}
 .payment-choice{display:flex;align-items:center;justify-content:center;gap:9px;min-height:54px}.pay-logo{width:35px;height:35px;flex:0 0 35px;display:block}.pay-name{font-size:13px;font-weight:800;letter-spacing:.1px}.pay-logo-img{width:44px;height:38px;object-fit:contain;flex:0 0 44px;background:#fff;border-radius:7px;padding:2px}
-.bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;z-index:50;display:grid;grid-template-columns:repeat(5,1fr);background:var(--nav);border-top:1px solid var(--bd);padding:7px 4px}
+.bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;z-index:50;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));background:var(--nav);border-top:1px solid var(--bd);padding:7px 3px}
 .nbtn{border:none;background:transparent;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9.5px;font-weight:700;cursor:pointer;padding:4px 2px;border-radius:10px}
 .nbtn .ni{font-size:18px;line-height:1}.nbtn.on{color:var(--gold2);background:rgba(245,158,11,.12)}
 .wov{position:fixed;inset:0;z-index:90;background:rgba(5,8,17,.94);display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px}
@@ -671,7 +671,12 @@ html,body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",san
 #lobbyHomeView .tier-join:active{transform:translateY(calc(-50% + 3px));box-shadow:0 1px 0 #76502b}
 @media(max-width:380px){.casino-hero{padding:15px 12px 12px}.casino-crown{width:47px;height:47px;flex-basis:47px}.casino-actions button{font-size:8px}#lobbyHomeView .tier-card{min-height:118px;padding-right:94px}#lobbyHomeView .tier-info strong{font-size:21px}#lobbyHomeView .tier-join{right:9px;min-width:70px}}
 
-</style>
+/* Royal Games casino lobby */
+.games-hero{padding:20px 16px;margin:4px 0 17px;border:1px solid rgba(239,195,103,.5);border-radius:22px;background:radial-gradient(ellipse at 90% 0,rgba(245,158,11,.25),transparent 42%),linear-gradient(135deg,#24142f,#0b1020 65%,#21162a);box-shadow:0 14px 30px rgba(0,0,0,.3)}
+.games-kicker{font-size:8px;letter-spacing:2px;font-weight:900;color:#e9c77f}.games-title{font-size:29px;font-weight:1000;color:#fff4d8;margin-top:8px}.games-title em{font-style:normal;color:#f6c866}.games-hero p{font-size:11px;color:#d1c3d5;margin-top:7px}.games-safe{margin-top:14px;padding:8px;border-radius:10px;background:rgba(16,185,129,.1);border:1px solid rgba(52,211,153,.28);color:#8ee7bd;font-size:8px;font-weight:900;text-align:center}
+.games-section-head{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px}.games-section-head div{display:flex;flex-direction:column;gap:3px}.games-section-head small{font-size:8px;letter-spacing:1.6px;color:#c5a96d;font-weight:900}.games-section-head strong{font-size:14px;color:var(--txt)}.games-section-head>span{font-size:9px;color:#e8c477;border:1px solid rgba(232,196,119,.3);padding:5px 8px;border-radius:20px}
+.games-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.game-tile{min-width:0;display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:13px 12px;border-radius:17px;border:1px solid rgba(226,190,123,.2);background:linear-gradient(145deg,#1b1b2c,#101321);color:#fff;box-shadow:0 8px 18px rgba(0,0,0,.2);cursor:pointer;min-height:143px}.game-tile.featured{border-color:rgba(245,198,92,.6);background:linear-gradient(145deg,#30233a,#111321)}.game-art{display:grid;place-items:center;width:47px;height:47px;border-radius:14px;background:rgba(245,198,92,.12);border:1px solid rgba(245,198,92,.28);font-size:27px;margin-bottom:10px}.game-tile b{font-size:11px;color:#ffedc4}.game-tile small{font-size:9px;color:#a9a4b8;margin-top:4px}.game-tile i{font-style:normal;font-size:8px;font-weight:950;color:#e8bd68;margin-top:auto;padding-top:12px}
+.casino-game-panel{margin-top:16px;padding:14px;border-radius:18px;border:1px solid rgba(245,198,92,.35);background:linear-gradient(145deg,#19172a,#0c1120)}.game-panel-top{display:flex;align-items:center;justify-content:space-between}.game-panel-top div{display:flex;flex-direction:column;gap:3px}.game-panel-top small{font-size:8px;color:#c6a96c;font-weight:900}.game-panel-top strong{font-size:14px;color:#ffedc4}.game-panel-top button{width:29px;height:29px;border-radius:9px;background:#222337;color:#fff}.casino-game-stage{min-height:125px;margin-top:12px;border-radius:14px;background:#090e1b;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:#ffe3a0;font-size:34px}.casino-game-stage p{font-size:11px;color:#b7b3c2}.casino-game-result{text-align:center;min-height:34px;padding:10px 4px;color:#e9cf93;font-size:12px;font-weight:800}.casino-play-btn{width:100%;padding:12px;border:0;border-radius:12px;background:linear-gradient(135deg,#ffe3a0,#d99b3e);color:#26172a;font-size:12px;font-weight:1000}.casino-play-btn:disabled{opacity:.4}.game-demo-note{font-size:9px;color:#8e8da0;text-align:center;margin-top:9px}@media(max-width:360px){.games-title{font-size:25px}.game-tile{min-height:133px;padding:10px}.nbtn{font-size:8px}.nbtn .ni{font-size:16px}}</style>
 </head>
 <body>
 <div id="toast" class="toast"></div>
@@ -848,6 +853,22 @@ html,body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",san
     </div>
   </section>
 
+<section id="tab-games" class="tab">
+<div class="games-hero"><div class="games-kicker">ROYAL BINGO · ENTERTAINMENT CLUB</div><div class="games-title">♛ CASINO <em>GAMES</em></div><p>የሚያምሩ Mini Games በአንድ ቦታ</p><div class="games-safe">🎮 FREE DEMO MODE · NO ETB BETS · NO WALLET DEDUCTIONS</div></div>
+<div class="games-section-head"><div><small>EXPLORE THE CLUB</small><strong>🔥 POPULAR GAMES</strong></div><span>8 GAMES</span></div>
+<div class="games-grid">
+<button class="game-tile featured" onclick="openCasinoGame('slots')"><span class="game-art">🎰</span><b>ROYAL SLOTS</b><small>Spin · Match · Win</small><i>PLAY DEMO ↗</i></button>
+<button class="game-tile" onclick="openCasinoGame('roulette')"><span class="game-art">🎡</span><b>ROULETTE</b><small>Red · Black · Green</small><i>PLAY DEMO ↗</i></button>
+<button class="game-tile" onclick="openCasinoGame('dice')"><span class="game-art">🎲</span><b>LUCKY DICE</b><small>Roll your luck</small><i>PLAY DEMO ↗</i></button>
+<button class="game-tile" onclick="openCasinoGame('coin')"><span class="game-art">🪙</span><b>COIN FLIP</b><small>Heads or tails</small><i>PLAY DEMO ↗</i></button>
+<button class="game-tile" onclick="openCasinoGame('wheel')"><span class="game-art">🎯</span><b>LUCKY WHEEL</b><small>Spin the wheel</small><i>PLAY DEMO ↗</i></button>
+<button class="game-tile" onclick="openCasinoGame('mines')"><span class="game-art">💎</span><b>GEM HUNT</b><small>Find the hidden gems</small><i>PLAY DEMO ↗</i></button>
+<button class="game-tile" onclick="openCasinoGame('cards')"><span class="game-art">🃏</span><b>BLACKJACK</b><small>Reach close to 21</small><i>PLAY DEMO ↗</i></button>
+<button class="game-tile" onclick="openCasinoGame('scratch')"><span class="game-art">🎟️</span><b>LUCKY SCRATCH</b><small>Reveal your prize</small><i>PLAY DEMO ↗</i></button>
+</div>
+<div id="casinoGamePanel" class="casino-game-panel"><div class="game-panel-top"><div><small>NOW PLAYING</small><strong id="casinoGameTitle">👑 Choose a game</strong></div><button onclick="closeCasinoGame()">✕</button></div><div id="casinoGameStage" class="casino-game-stage"><div style="font-size:42px">🎮</div><p>ከላይ ያሉትን ጌሞች አንዱን ይምረጡ።</p></div><div id="casinoGameResult" class="casino-game-result">Demo ጨዋታውን ለመጀመር ይምረጡ።</div><button id="casinoPlayBtn" class="casino-play-btn" onclick="playCasinoDemo()" disabled>▶ PLAY DEMO</button><div class="game-demo-note">እነዚህ Demo ጌሞች እውነተኛ ገንዘብ አይጠቀሙም፤ Wallet አይቀንሱም።</div></div>
+</section>
+
   <section id="tab-wallet" class="tab">
     <div class="scard">
       <div class="shd"><span>💼 የሂሳብ ማጠቃለያ (Real Wallet)</span></div>
@@ -947,6 +968,7 @@ html,body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",san
 
   <nav class="bnav">
     <button class="nbtn on" data-t="bingo" onclick="goTab('bingo')"><span class="ni">🎮</span><span>BINGO</span></button>
+    <button class="nbtn" data-t="games" onclick="goTab('games')"><span class="ni">🎰</span><span>GAMES</span></button>
     <button class="nbtn" data-t="wallet" onclick="goTab('wallet')"><span class="ni">👛</span><span>WALLET</span></button>
     <button class="nbtn" data-t="history" onclick="goTab('history')"><span class="ni">🕒</span><span>HISTORY</span></button>
     <button class="nbtn" data-t="rank" onclick="goTab('rank')"><span class="ni">🏆</span><span>RANK</span></button>
@@ -1794,7 +1816,12 @@ function toggleAuto() {
   b.classList.toggle('off', !autoMark);
   if (latestState) renderState(latestState);
 }
-function goTab(t) {
+var activeCasinoGame='';
+var casinoGameNames={slots:'ROYAL SLOTS',roulette:'ROULETTE',dice:'LUCKY DICE',coin:'COIN FLIP',wheel:'LUCKY WHEEL',mines:'GEM HUNT',cards:'BLACKJACK',scratch:'LUCKY SCRATCH'};
+function openCasinoGame(id){activeCasinoGame=id;var icons={slots:'🎰',roulette:'🎡',dice:'🎲',coin:'🪙',wheel:'🎯',mines:'💎',cards:'🃏',scratch:'🎟️'};document.getElementById('casinoGameTitle').textContent='👑 '+casinoGameNames[id];document.getElementById('casinoGameResult').textContent='▶ ለመጫወት PLAY DEMO ይጫኑ።';document.getElementById('casinoGameStage').innerHTML='<div style="font-size:46px">'+icons[id]+'</div><p>'+casinoGameNames[id]+' · FREE DEMO</p>';document.getElementById('casinoPlayBtn').disabled=false;document.getElementById('casinoGamePanel').scrollIntoView({behavior:'smooth',block:'nearest'});}
+function closeCasinoGame(){activeCasinoGame='';document.getElementById('casinoGameTitle').textContent='👑 Choose a game';document.getElementById('casinoGameStage').innerHTML='<div style="font-size:42px">🎮</div><p>ጨዋታ ይምረጡ።</p>';document.getElementById('casinoGameResult').textContent='Demo ጨዋታ ይምረጡ።';document.getElementById('casinoPlayBtn').disabled=true;}
+function playCasinoDemo(){if(!activeCasinoGame)return;var out='',visual='';if(activeCasinoGame==='slots'){var sy=['🍒','🔔','💎','👑','7️⃣'],a=sy[Math.floor(Math.random()*5)],b=sy[Math.floor(Math.random()*5)],c=sy[Math.floor(Math.random()*5)];visual=a+'　'+b+'　'+c;out=(a===b&&b===c)?'🎉 JACKPOT!':'ድጋሚ ይሞክሩ!';}else if(activeCasinoGame==='roulette'){var n=Math.floor(Math.random()*37);visual='🎡';out='የወጣው ቁጥር: '+n+' · '+(n===0?'GREEN':n%2?'RED':'BLACK');}else if(activeCasinoGame==='dice'){var d1=1+Math.floor(Math.random()*6),d2=1+Math.floor(Math.random()*6);visual='🎲 '+d1+' + '+d2;out='ድምር: '+(d1+d2);}else if(activeCasinoGame==='coin'){visual='🪙';out='ውጤት: '+(Math.random()<.5?'HEADS 🟡':'TAILS ⚪');}else if(activeCasinoGame==='wheel'){visual='🎯';out='Wheel: '+['BONUS ✨','LUCKY ⭐','GOLD 👑','TRY AGAIN'][Math.floor(Math.random()*4)];}else if(activeCasinoGame==='mines'){visual='💎';out='በዚህ ዙር '+(1+Math.floor(Math.random()*5))+' እንቁ አግኝተዋል!';}else if(activeCasinoGame==='cards'){var total=2+Math.floor(Math.random()*10)+2+Math.floor(Math.random()*10);visual='🃏';out='Demo hand: '+total+' · '+(total===21?'BLACKJACK!':total>21?'BUST':'STAND');}else{visual='🎟️';out='የተገለጠው: '+['⭐ LUCKY STAR','💎 GEM','👑 ROYAL CROWN','🍀 GOOD LUCK'][Math.floor(Math.random()*4)];}document.getElementById('casinoGameStage').innerHTML='<div style="font-size:34px;text-align:center">'+visual+'</div>';document.getElementById('casinoGameResult').textContent=out;}
+\nfunction goTab(t) {
   document.querySelectorAll('.tab').forEach(function(e) { e.classList.remove('on'); });
   document.querySelectorAll('.nbtn').forEach(function(e) { e.classList.remove('on'); });
   document.getElementById('tab-' + t).classList.add('on');
