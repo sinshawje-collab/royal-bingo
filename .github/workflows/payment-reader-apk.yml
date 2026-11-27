@@ -1,0 +1,48 @@
+name: Build Royal Bingo Payment Reader APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'payment-sms-android/**'
+      - '.github/workflows/payment-reader-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-payment-reader:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install Android SDK platform
+        shell: bash
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f | head -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "Android SDK command-line tools were not found."
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+      - name: Build standalone Payment Reader
+        working-directory: payment-sms-android
+        run: gradle --no-daemon assembleDebug
+      - name: Upload standalone APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: royal-bingo-payment-reader-apk
+          path: payment-sms-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
