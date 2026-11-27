@@ -9,6 +9,8 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
@@ -35,6 +37,8 @@ class PaymentReaderActivity : Activity() {
     private val purple = Color.rgb(27, 29, 60)
     private val gold = Color.rgb(255, 195, 64)
     private val muted = Color.rgb(164, 172, 198)
+    private val statusHandler = Handler(Looper.getMainLooper())
+    private val statusRefresh = object : Runnable { override fun run() { if (::prefs.isInitialized) refreshStatus(); statusHandler.postDelayed(this, 2500) } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -188,7 +192,9 @@ class PaymentReaderActivity : Activity() {
         }.start()
     }
 
-    override fun onResume() { super.onResume(); if (::prefs.isInitialized) refreshStatus() }
+    override fun onResume() { super.onResume(); if (::prefs.isInitialized) { refreshStatus(); statusHandler.removeCallbacks(statusRefresh); statusHandler.post(statusRefresh) } }
+
+    override fun onPause() { statusHandler.removeCallbacks(statusRefresh); super.onPause() }
 
     private fun refreshStatus() {
         val component = ComponentName(this, PaymentNotificationListener::class.java)
