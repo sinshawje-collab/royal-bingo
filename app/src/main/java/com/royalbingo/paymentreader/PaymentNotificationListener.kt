@@ -65,18 +65,19 @@ class PaymentNotificationListener : NotificationListenerService() {
         // Accept common incoming-payment wording from both providers, including ETB/Birr/Br formats.
         // A sender-side "sent to" alert is also parsed; the server only matches it to an exact
         // pending deposit by transaction ID, amount and selected provider before admin approval.
+        if (lower.contains("debited") || lower.contains("withdrawn") || lower.contains("sent to") || lower.contains("you sent")) return null
         val amountMatch =
-            Regex("(?i)you have received\\s+(?:ETB\\s*)?([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)?").find(text)
+            Regex("(?i)you have received\\s+(?:an amount of\\s*)?(?:ETB\\s*)?([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)?").find(text)
                 ?: Regex("(?i)you received\\s+([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)").find(text)
                 ?: Regex("(?i)received\\s+(?:ETB|Birr|Br\\.?)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)").find(text)
-                ?: Regex("(?i)you have sent\\s+([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)\\s+to\\s+").find(text)
-                ?: Regex("(?i)you sent\\s+([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)\\s+to\\s+").find(text)
+                ?: Regex("(?i)(?:your account has been credited with|credited with|credited to your account)\\s*(?:ETB|Birr|Br\\.?)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)").find(text)
                 ?: return null
         val amount = amountMatch.groupValues[1].replace(",", "").toDoubleOrNull() ?: return null
 
         val tx = Regex("(?i)(?:transaction\\s*(?:number|id|no\\.?|#)?|txn\\s*(?:id|no\\.?)?)\\s*(?:is|:|#)?\\s*([A-Z0-9-]{6,32})").find(text)
             ?: Regex("(?i)\\bTID=([A-Z0-9-]{6,32})").find(text)
             ?: Regex("(?i)transaction[^A-Z0-9]{0,20}([A-Z0-9]{6,32})").find(text)
+            ?: Regex("(?i)(?:reference|ref)\\s*(?:number|no\\.?|id|#)?\\s*(?:is|:|#)?\\s*([A-Z0-9-]{6,32})").find(text)
             ?: return null
         val txid = tx.groupValues[1].uppercase(Locale.ROOT)
         if (amount <= 0 || txid.length < 6) return null
