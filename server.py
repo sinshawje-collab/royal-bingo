@@ -1149,7 +1149,7 @@ def run_bot():
     try:
       print('Checking the shared Telegram polling lock in Neon PostgreSQL.')
       with get_db_pool().connection() as lock_conn:
-        acquired = lock_conn.execute('SELECT pg_try_advisory_lock(%s)', (lock_key,)).fetchone()[0]
+        acquired = lock_conn.execute('SELECT pg_try_advisory_lock(%s) AS acquired', (lock_key,)).fetchone()['acquired']
         if not acquired:
           print('Another Royal Bingo instance owns Telegram polling; retrying in 15 seconds.')
         else:
