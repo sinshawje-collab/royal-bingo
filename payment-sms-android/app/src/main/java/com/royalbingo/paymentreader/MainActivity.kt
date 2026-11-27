@@ -7,6 +7,10 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.text.InputFilter
+import org.json.JSONObject
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
@@ -29,10 +33,12 @@ class MainActivity : Activity() {
     private lateinit var connectButton: Button
     private lateinit var prefs: android.content.SharedPreferences
 
-    private val navy = Color.rgb(17, 14, 42)
-    private val purple = Color.rgb(45, 25, 86)
-    private val gold = Color.rgb(255, 190, 55)
-    private val muted = Color.rgb(190, 184, 211)
+    private val navy = Color.rgb(8, 10, 28)
+    private val purple = Color.rgb(27, 29, 60)
+    private val gold = Color.rgb(255, 195, 64)
+    private val muted = Color.rgb(164, 172, 198)
+    private val statusHandler = Handler(Looper.getMainLooper())
+    private val statusRefresh = object : Runnable { override fun run() { if (::prefs.isInitialized) refreshStatus(); statusHandler.postDelayed(this, 2500) } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,8 +75,8 @@ class MainActivity : Activity() {
         brand.addView(brandText)
         page.addView(brand)
 
-        page.addView(label("Welcome back", 23f, Color.WHITE, true).apply { setPadding(dp(2), dp(22), 0, dp(4)) })
-        page.addView(label("Monitor incoming TeleBirr and CBE Birr payment alerts.", 13f, muted, false).apply { setPadding(dp(2), 0, 0, dp(16)) })
+        page.addView(label("Payment command center", 23f, Color.WHITE, true).apply { setPadding(dp(2), dp(22), 0, dp(4)) })
+        page.addView(label("Securely monitor TeleBirr and CbeBirr payment alerts.", 13f, muted, false).apply { setPadding(dp(2), 0, 0, dp(16)) })
 
         val overviewCard = card()
         overviewCard.addView(sectionTitle("TODAY'S PAYMENT OVERVIEW"))
@@ -80,7 +86,7 @@ class MainActivity : Activity() {
         page.addView(overviewCard)
 
         val connectionCard = card()
-        connectionCard.addView(sectionTitle("DEVICE CONNECTION"))
+        connectionCard.addView(sectionTitle("DEVICE HEALTH & CONNECTION"))
         pairedView = statusLine()
         accessView = statusLine()
         listenerView = statusLine()
@@ -90,7 +96,7 @@ class MainActivity : Activity() {
         page.addView(connectionCard)
 
         val pairingCard = card()
-        pairingCard.addView(sectionTitle("PAIR YOUR DEVICE"))
+        pairingCard.addView(sectionTitle("CONNECT TO YOUR ADMIN PANEL"))
         pairingCard.addView(label("Enter the 8-character code generated inside the Royal Bingo admin panel.", 12f, muted, false).apply { setPadding(0, 0, 0, dp(10)) })
         codeInput = EditText(this).apply {
             hint = "ENTER PAIRING CODE"
@@ -101,6 +107,7 @@ class MainActivity : Activity() {
             letterSpacing = 0.16f
             isSingleLine = true
             inputType = 0x00000001 or 0x00001000
+            filters = arrayOf(InputFilter.AllCaps(), InputFilter.LengthFilter(8))
             background = rounded(Color.rgb(35, 27, 61), 13, Color.rgb(91, 69, 132))
             setPadding(dp(12), dp(13), dp(12), dp(13))
         }
@@ -111,7 +118,7 @@ class MainActivity : Activity() {
         page.addView(pairingCard)
 
         val activityCard = card()
-        activityCard.addView(sectionTitle("PAYMENT ACTIVITY"))
+        activityCard.addView(sectionTitle("LATEST READER ACTIVITY"))
         lastSeenView = detailLine("Last notification", "Not yet")
         paymentView = detailLine("Payment detected", "Waiting for a new payment alert")
         serverView = detailLine("Server response", "No payment sent yet")
@@ -121,10 +128,10 @@ class MainActivity : Activity() {
         page.addView(activityCard)
 
         val historyCard = card()
-        historyCard.addView(sectionTitle("RECENT PAYMENT HISTORY"))
+        historyCard.addView(sectionTitle("RECENT TRANSACTIONS"))
         historyContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         historyCard.addView(historyContainer)
-        val clearHistoryButton = actionButton("CLEAR LOCAL HISTORY", false)
+        val clearHistoryButton = actionButton("CLEAR PHONE HISTORY", false)
         clearHistoryButton.setOnClickListener {
             android.app.AlertDialog.Builder(this)
                 .setTitle("Clear payment history?")
@@ -139,11 +146,11 @@ class MainActivity : Activity() {
         historyCard.addView(clearHistoryButton, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(8) })
         page.addView(historyCard)
 
-        val settingsButton = actionButton("OPEN NOTIFICATION ACCESS SETTINGS", false)
+        val settingsButton = actionButton("ENABLE NOTIFICATION ACCESS", false)
         settingsButton.setOnClickListener { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
         page.addView(settingsButton, LinearLayout.LayoutParams(-1, dp(50)).apply { topMargin = dp(4) })
         val refreshButton = TextView(this).apply {
-            text = "↻   Refresh status"
+            text = "↻   Refresh"
             textSize = 14f
             gravity = Gravity.CENTER
             setTextColor(gold)
@@ -151,7 +158,7 @@ class MainActivity : Activity() {
             setOnClickListener { refreshStatus() }
         }
         page.addView(refreshButton)
-        page.addView(label("PRIVACY & SECURITY", 11f, gold, true).apply { setPadding(dp(2), dp(14), 0, dp(6)) })
+        page.addView(label("SECURITY & PRIVACY", 11f, gold, true).apply { setPadding(dp(2), dp(14), 0, dp(6)) })
         page.addView(label("Only payment provider, amount, transaction ID and time are sent to Royal Bingo. Full notification text and OTP codes are not uploaded. Recent event history is stored on this phone (up to 50 records). Wallet deposits still require admin approval.", 12f, muted, false))
         page.addView(label("Important: your SMS app must show new payment notifications. This app cannot recover notifications received before it was installed or enabled.", 11f, muted, false).apply { setPadding(0, dp(12), 0, 0) })
 
@@ -175,18 +182,23 @@ class MainActivity : Activity() {
                 conn.outputStream.use { it.write("""{"pairing_code":"$code","label":"Samsung S22 Ultra"}""".toByteArray()) }
                 val status = conn.responseCode
                 val response = (if (status in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
-                val token = Regex("\"device_token\"\\s*:\\s*\"([^\"]+)\"").find(response)?.groupValues?.get(1)
+                val token = try { JSONObject(response).optString("device_token").takeIf { it.isNotBlank() } } catch (_: Exception) { null }
                 if (token != null) {
                     prefs.edit().putString("device_token", token).apply()
                     runOnUiThread { toast("Device connected successfully"); refreshStatus() }
-                } else runOnUiThread { toast("Pairing failed (HTTP $status): $response") }
+                } else {
+                    val detail = try { JSONObject(response).optString("detail", "Generate a fresh pairing code.") } catch (_: Exception) { "Generate a fresh pairing code." }
+                    runOnUiThread { toast("Pairing failed (HTTP $status): $detail") }
+                }
                 conn.disconnect()
             } catch (e: Exception) { runOnUiThread { toast("Connection error: ${e.message}") } }
             finally { runOnUiThread { connectButton.isEnabled = true; connectButton.text = "CONNECT TO ROYAL BINGO" } }
         }.start()
     }
 
-    override fun onResume() { super.onResume(); if (::prefs.isInitialized) refreshStatus() }
+    override fun onResume() { super.onResume(); if (::prefs.isInitialized) { refreshStatus(); statusHandler.removeCallbacks(statusRefresh); statusHandler.post(statusRefresh) } }
+
+    override fun onPause() { statusHandler.removeCallbacks(statusRefresh); super.onPause() }
 
     private fun refreshStatus() {
         val component = ComponentName(this, PaymentNotificationListener::class.java)
@@ -231,10 +243,10 @@ class MainActivity : Activity() {
                 }
             }
         }
-        summaryView.text = "ETB ${String.format(Locale.US, "%,.2f", todayTotal)}   •   $todayCount detected today\nMatched: $matchedCount   •   CBE: $cbeCount   •   TeleBirr: $teleCount\nLocal history: ${events.length()} / 50 events"
+        summaryView.text = "ETB ${String.format(Locale.US, "%,.2f", todayTotal)} detected today\\n$todayCount alerts  •  Matched: $matchedCount\\nCbeBirr: $cbeCount  •  TeleBirr: $teleCount\\nDetected amount is not wallet credit. Admin approval is still required.\\nLocal history: ${events.length()} / 50 events"
         historyContainer.removeAllViews()
         if (events.length() == 0) {
-            historyContainer.addView(label("No payment events recorded yet.", 12f, muted, false).apply { setPadding(0, dp(4), 0, dp(10)) })
+            historyContainer.addView(label("No payment alerts yet. New recognized transactions will appear here.", 12f, muted, false).apply { setPadding(0, dp(4), 0, dp(10)) })
             return
         }
         val start = (events.length() - 10).coerceAtLeast(0)
@@ -265,11 +277,11 @@ class MainActivity : Activity() {
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(16), dp(16), dp(16), dp(16))
-        background = rounded(Color.rgb(37, 28, 65), 19)
+        background = rounded(Color.rgb(23, 24, 51), 19)
         val p = LinearLayout.LayoutParams(-1, -2); p.bottomMargin = dp(14); layoutParams = p
     }
-    private fun sectionTitle(s: String) = label(s, 11f, gold, true).apply { setPadding(0, 0, 0, dp(12)) }
-    private fun statusLine() = label("", 13f, Color.WHITE, true).apply { setPadding(0, dp(5), 0, dp(5)) }
+    private fun sectionTitle(s: String) = label(s, 10f, gold, true).apply { setPadding(0, 0, 0, dp(12)) }
+    private fun statusLine() = label("", 11f, Color.WHITE, true).apply { setPadding(0, dp(5), 0, dp(5)) }
     private fun detailLine(title: String, value: String) = label("$title\n$value", 12f, muted, false).apply { setPadding(0, dp(7), 0, dp(7)) }
     private fun label(s: String, size: Float, color: Int, bold: Boolean) = TextView(this).apply {
         text = s; textSize = size; setTextColor(color)
