@@ -11,6 +11,8 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.InputFilter
+import org.json.JSONObject
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
@@ -107,6 +109,7 @@ class PaymentReaderActivity : Activity() {
             letterSpacing = 0.16f
             isSingleLine = true
             inputType = 0x00000001 or 0x00001000
+            filters = arrayOf(InputFilter.AllCaps(), InputFilter.LengthFilter(8))
             background = rounded(Color.rgb(35, 27, 61), 13, Color.rgb(91, 69, 132))
             setPadding(dp(12), dp(13), dp(12), dp(13))
         }
@@ -181,11 +184,14 @@ class PaymentReaderActivity : Activity() {
                 conn.outputStream.use { it.write("""{"pairing_code":"$code","label":"Samsung S22 Ultra"}""".toByteArray()) }
                 val status = conn.responseCode
                 val response = (if (status in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
-                val token = Regex("\"device_token\"\\s*:\\s*\"([^\"]+)\"").find(response)?.groupValues?.get(1)
+                val token = try { JSONObject(response).optString("device_token").takeIf { it.isNotBlank() } } catch (_: Exception) { null }
                 if (token != null) {
                     prefs.edit().putString("device_token", token).apply()
                     runOnUiThread { toast("Device connected successfully"); refreshStatus() }
-                } else runOnUiThread { toast("Pairing failed (HTTP $status): $response") }
+                } else {
+                    val detail = try { JSONObject(response).optString("detail", "Generate a fresh pairing code.") } catch (_: Exception) { "Generate a fresh pairing code." }
+                    runOnUiThread { toast("Pairing failed (HTTP $status): $detail") }
+                }
                 conn.disconnect()
             } catch (e: Exception) { runOnUiThread { toast("Connection error: ${e.message}") } }
             finally { runOnUiThread { connectButton.isEnabled = true; connectButton.text = "CONNECT TO ROYAL BINGO" } }
@@ -239,7 +245,7 @@ class PaymentReaderActivity : Activity() {
                 }
             }
         }
-        summaryView.text = "ETB ${String.format(Locale.US, "%,.2f", todayTotal)}   •   $todayCount detected today\nMatched: $matchedCount   •   CBE: $cbeCount   •   TeleBirr: $teleCount\nLocal history: ${events.length()} / 50 events"
+        summaryView.text = "ETB ${String.format(Locale.US, "%,.2f", todayTotal)} detected today\\n$todayCount alerts  •  Matched: $matchedCount\\nCbeBirr: $cbeCount  •  TeleBirr: $teleCount\\nDetected amount is not wallet credit. Admin approval is still required.\\nLocal history: ${events.length()} / 50 events"
         historyContainer.removeAllViews()
         if (events.length() == 0) {
             historyContainer.addView(label("No payment alerts yet. New recognized transactions will appear here.", 12f, muted, false).apply { setPadding(0, dp(4), 0, dp(10)) })
