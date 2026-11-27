@@ -42,7 +42,15 @@ class PaymentNotificationListener : NotificationListenerService() {
             if (item is Bundle) item.getCharSequence("text")?.toString()?.let(parts::add)
         }
 
-        val parsed = parsePayment(parts.joinToString(" ")) ?: return
+        val notificationText = parts.joinToString(" ").replace(Regex("\\s+"), " ").trim()
+        val parsed = parsePayment(notificationText, sbn.packageName) ?: run {
+            // Keep a useful diagnostic without saving or uploading the notification's private text.
+            prefs.edit().putString(
+                "last_payment_status",
+                "Notification seen, but not recognized as an incoming payment (" + sbn.packageName + ")"
+            ).apply()
+            return
+        }
         prefs.edit().putString("last_payment_status", "Recognized ${parsed.optString("provider")} payment (${parsed.optString("amount")} ETB)").apply()
         PaymentStore.recordDetected(this, parsed)
         val token = prefs.getString("device_token", null) ?: run {
@@ -53,33 +61,38 @@ class PaymentNotificationListener : NotificationListenerService() {
         Thread { send(parsed, token) }.start()
     }
 
-    private fun parsePayment(text: String): JSONObject? {
+    private fun parsePayment(text: String, packageName: String): JSONObject? {
         val lower = text.lowercase(Locale.ROOT)
+        val pkg = packageName.lowercase(Locale.ROOT)
+        // Some TeleBirr notification layouts omit the brand from the visible message.
+        // Trust the app identity only when it is explicitly the TeleBirr package.
         val provider = when {
-            lower.contains("telebirr") || lower.contains("ethio telecom") -> "TeleBirr"
+            lower.contains("telebirr") || lower.contains("ethio telecom") || pkg.contains("telebirr") -> "TeleBirr"
             lower.contains("cbe birr") || lower.contains("commercial bank of ethiopia") -> "CBE Birr"
             else -> return null
         }
         if (lower.contains("airtime") || lower.contains("top-up") || lower.contains("top up")) return null
+        if (lower.contains("debited") || lower.contains("withdrawn") || lower.contains("sent to") ||
+            lower.contains("you sent") || lower.contains("transfer sent") || lower.contains("payment sent")) return null
 
-        // Accept common incoming-payment wording from both providers, including ETB/Birr/Br formats.
-        // A sender-side "sent to" alert is also parsed; the server only matches it to an exact
-        // pending deposit by transaction ID, amount and selected provider before admin approval.
-        if (lower.contains("debited") || lower.contains("withdrawn") || lower.contains("sent to") || lower.contains("you sent")) return null
-        val amountMatch =
-            Regex("(?i)you have received\\s+(?:an amount of\\s*)?(?:ETB\\s*)?([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)?").find(text)
-                ?: Regex("(?i)you received\\s+([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)").find(text)
-                ?: Regex("(?i)received\\s+(?:ETB|Birr|Br\\.?)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)").find(text)
-                ?: Regex("(?i)(?:your account has been credited with|credited with|credited to your account)\\s*(?:ETB|Birr|Br\\.?)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)").find(text)
-                ?: return null
+        val amountPatterns = listOf(
+            Regex("(?i)you\\s+have\\s+received\\s+(?:an\\s+amount\\s+of\\s*)?(?:ETB\\s*)?([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)?"),
+            Regex("(?i)you\\s+received\\s+(?:ETB\\s*)?([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ETB|Birr|Br\\.?)?"),
+            Regex("(?i)received\\s+(?:ETB|Birr|Br\\.?)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)"),
+            Regex("(?i)(?:credited|credit)\\s+(?:with|to\\s+your\\s+account)\\s*(?:ETB|Birr|Br\\.?)?\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)"),
+            Regex("(?i)(?:amount|value)\\s*[:=]?\\s*(?:ETB|Birr|Br\\.?)?\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)")
+        )
+        val amountMatch = amountPatterns.firstNotNullOfOrNull { it.find(text) } ?: return null
         val amount = amountMatch.groupValues[1].replace(",", "").toDoubleOrNull() ?: return null
 
-        val tx = Regex("(?i)(?:transaction\\s*(?:number|id|no\\.?|#)?|txn\\s*(?:id|no\\.?)?)\\s*(?:is|:|#)?\\s*([A-Z0-9-]{6,32})").find(text)
-            ?: Regex("(?i)\\bTID=([A-Z0-9-]{6,32})").find(text)
-            ?: Regex("(?i)transaction[^A-Z0-9]{0,20}([A-Z0-9]{6,32})").find(text)
-            ?: Regex("(?i)(?:reference|ref)\\s*(?:number|no\\.?|id|#)?\\s*(?:is|:|#)?\\s*([A-Z0-9-]{6,32})").find(text)
-            ?: return null
-        val txid = tx.groupValues[1].uppercase(Locale.ROOT)
+        val txPatterns = listOf(
+            Regex("(?i)transaction\\s*(?:number|no\\.?|id|#)\\s*(?:is|:|#)?\\s*([A-Z0-9-]{6,32})"),
+            Regex("(?i)txn\\s*(?:id|no\\.?|number)?\\s*(?:is|:|#)?\\s*([A-Z0-9-]{6,32})"),
+            Regex("(?i)\\bTID\\s*[:=#-]\\s*([A-Z0-9-]{6,32})"),
+            Regex("(?i)(?:reference|ref)\\s*(?:number|no\\.?|id|#)?\\s*(?:is|:|#)?\\s*([A-Z0-9-]{6,32})")
+        )
+        val tx = txPatterns.firstNotNullOfOrNull { it.find(text) } ?: return null
+        val txid = tx.groupValues[1].trim().trimEnd('.', ',', ';', ':').uppercase(Locale.ROOT)
         if (amount <= 0 || txid.length < 6) return null
         return JSONObject().put("provider", provider).put("amount", amount)
             .put("transaction_id", txid).put("received_at", System.currentTimeMillis() / 1000)
