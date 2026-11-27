@@ -1139,41 +1139,36 @@ def run_bot():
     print('WARNING: DATABASE_URL not set; Telegram polling cannot acquire its single-instance lock.')
     return
 
-  # Render may briefly overlap old and new instances during deploys. A
-  # PostgreSQL session advisory lock guarantees that only one instance using
-  # this database can call Telegram getUpdates at a time.
+  # Render can briefly overlap old and new instances during deploys. Hold a
+  # PostgreSQL session advisory lock from the existing Neon connection pool
+  # so only one instance using this database can poll Telegram getUpdates.
   print('Waiting 20 seconds for the previous Render instance to shut down.')
   time.sleep(20)
   lock_key = 72110427001
   while True:
-    lock_conn = None
     try:
-      lock_conn = psycopg.connect(DATABASE_URL, autocommit=True, connect_timeout=15)
-      acquired = lock_conn.execute('SELECT pg_try_advisory_lock(%s)', (lock_key,)).fetchone()[0]
+      print('Checking the shared Telegram polling lock in Neon PostgreSQL.')
+      with get_db_pool().connection() as lock_conn:
+        acquired = lock_conn.execute('SELECT pg_try_advisory_lock(%s)', (lock_key,)).fetchone()[0]
+        if not acquired:
+          print('Another Royal Bingo instance owns Telegram polling; retrying in 15 seconds.')
+        else:
+          print('Telegram polling lock acquired; Royal Bingo bot is starting.')
+          try:
+            bot.infinity_polling(timeout=30, long_polling_timeout=25)
+          finally:
+            try:
+              lock_conn.execute('SELECT pg_advisory_unlock(%s)', (lock_key,))
+            except Exception:
+              pass
       if not acquired:
-        print('Another Royal Bingo instance owns Telegram polling; retrying in 15 seconds.')
-        lock_conn.close()
-        lock_conn = None
         time.sleep(15)
-        continue
-
-      print('Telegram polling lock acquired; Royal Bingo bot is starting.')
-      bot.infinity_polling(timeout=30, long_polling_timeout=25)
-      print('Telegram polling stopped; the bot will retry after 5 seconds.')
-      time.sleep(5)
+      else:
+        print('Telegram polling stopped; the bot will retry after 5 seconds.')
+        time.sleep(5)
     except Exception as exc:
       print('Telegram bot polling startup/runtime error:', type(exc).__name__, str(exc))
       time.sleep(10)
-    finally:
-      if lock_conn is not None:
-        try:
-          lock_conn.execute('SELECT pg_advisory_unlock(%s)', (lock_key,))
-        except Exception:
-          pass
-        try:
-          lock_conn.close()
-        except Exception:
-          pass
 
 app = FastAPI(title='ROYAL BINGO Live')
 allowed_origins = [x.strip().rstrip('/') for x in os.environ.get('CORS_ORIGINS', APP_URL).split(',') if x.strip()]
