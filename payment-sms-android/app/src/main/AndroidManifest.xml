@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
-        android:label="Royal Bingo Payment Manager"
+        android:label="Royal Bingo Payment Reader"
         android:icon="@drawable/royal_bingo_logo"
         android:roundIcon="@drawable/royal_bingo_logo"
         android:usesCleartextTraffic="false">
